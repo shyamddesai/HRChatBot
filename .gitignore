@@ -1,1 +1,42 @@
-**/node_modules/**
+## .NET Core
+bin/
+obj/
+**/bin/
+**/obj/
+
+## User-specific files
+*.user
+*.userosscache
+*.suo
+*.userprefs
+
+## Build results
+[Dd]ebug/
+[Rr]elease/
+x64/
+build/
+[Bb]in/
+[Oo]bj/
+
+## Secret files
+appsettings.Development.json
+appsettings.Production.json
+secrets.json
+
+## Visual Studio files
+.vs/
+.vscode/
+*.swp
+*.sln.docstates
+
+## User Secrets (dotnet user-secrets)
+**/secrets.json
+
+## NuGet
+packages/
+*.nupkg
+
+## Misc
+*.log
+*.tmp
+*.temp
