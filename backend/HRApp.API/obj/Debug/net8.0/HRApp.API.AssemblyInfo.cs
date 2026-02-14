@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("HRApp.API")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+d1e41d75bffaf492569cce101a71ff388dc961d2")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+c656ae303d7e33abbf739c85f1064aa72b3df3dd")]
 [assembly: System.Reflection.AssemblyProductAttribute("HRApp.API")]
 [assembly: System.Reflection.AssemblyTitleAttribute("HRApp.API")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

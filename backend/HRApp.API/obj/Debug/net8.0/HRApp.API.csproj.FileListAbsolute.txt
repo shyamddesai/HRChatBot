@@ -119,3 +119,4 @@ C:\Users\sdeti\Workspaces\world-bank-hr-chatbot-winter2026\HRChatBot\backend\HRA
 C:\Users\sdeti\Workspaces\world-bank-hr-chatbot-winter2026\HRChatBot\backend\HRApp.API\obj\Debug\net8.0\HRApp.API.pdb
 C:\Users\sdeti\Workspaces\world-bank-hr-chatbot-winter2026\HRChatBot\backend\HRApp.API\obj\Debug\net8.0\HRApp.API.genruntimeconfig.cache
 C:\Users\sdeti\Workspaces\world-bank-hr-chatbot-winter2026\HRChatBot\backend\HRApp.API\obj\Debug\net8.0\ref\HRApp.API.dll
+C:\Users\sdeti\Workspaces\world-bank-hr-chatbot-winter2026\HRChatBot\backend\HRApp.API\obj\Debug\net8.0\staticwebassets.upToDateCheck.txt
