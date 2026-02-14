@@ -167,6 +167,28 @@ namespace HRApp.Infrastructure.Migrations
                     b.ToTable("LeaveRequests");
                 });
 
+            modelBuilder.Entity("HRApp.Core.Entities.LeaveSummary", b =>
+                {
+                    b.Property<Guid>("EmployeeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Year")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("AnnualEntitlement")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("RemainingDays")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("UsedDays")
+                        .HasColumnType("integer");
+
+                    b.HasKey("EmployeeId", "Year");
+
+                    b.ToTable("LeaveSummaries");
+                });
+
             modelBuilder.Entity("HRApp.Core.Entities.Salary", b =>
                 {
                     b.Property<Guid>("Id")
@@ -257,6 +279,17 @@ namespace HRApp.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("ApprovedBy");
+
+                    b.Navigation("Employee");
+                });
+
+            modelBuilder.Entity("HRApp.Core.Entities.LeaveSummary", b =>
+                {
+                    b.HasOne("HRApp.Core.Entities.Employee", "Employee")
+                        .WithMany()
+                        .HasForeignKey("EmployeeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
                     b.Navigation("Employee");
                 });

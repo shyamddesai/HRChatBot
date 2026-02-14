@@ -14,6 +14,7 @@ namespace HRApp.Infrastructure.Data
         public DbSet<LeaveRequest> LeaveRequests { get; set; }
         public DbSet<Skill> Skills { get; set; }
         public DbSet<EmployeeSkill> EmployeeSkills { get; set; }
+        public DbSet<LeaveSummary> LeaveSummaries { get; set; }
         public DbSet<Document> Documents { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -40,6 +41,11 @@ namespace HRApp.Infrastructure.Data
                 .HasForeignKey(l => l.ApprovedById)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            modelBuilder.Entity<LeaveSummary>()
+                .HasOne(ls => ls.Employee)
+                .WithMany()
+                .HasForeignKey(ls => ls.EmployeeId);
+
             // Composite key for EmployeeSkill
             modelBuilder.Entity<EmployeeSkill>()
                 .HasKey(es => new { es.EmployeeId, es.SkillId });
@@ -61,6 +67,9 @@ namespace HRApp.Infrastructure.Data
             modelBuilder.Entity<Salary>()
                 .Property(s => s.EffectiveTo)
                 .IsRequired(false);
+
+            modelBuilder.Entity<LeaveSummary>()
+                .HasKey(ls => new { ls.EmployeeId, ls.Year });
         }
     }
 }

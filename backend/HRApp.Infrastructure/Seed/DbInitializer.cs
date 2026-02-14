@@ -85,6 +85,14 @@ namespace HRApp.Infrastructure.Seed
             );
             context.SaveChanges();
 
+            // Seed Leave Summaries
+            var currentYear = DateTime.UtcNow.Year;
+            context.LeaveSummaries.AddRange(
+                new LeaveSummary { EmployeeId = emp1.Id, Year = currentYear, AnnualEntitlement = 30, UsedDays = 5, RemainingDays = 25 },
+                new LeaveSummary { EmployeeId = emp2.Id, Year = currentYear, AnnualEntitlement = 30, UsedDays = 2, RemainingDays = 28 }
+            );
+            context.SaveChanges();
+
             // Seed Salaries
             context.Salaries.AddRange(
                 new Salary { EmployeeId = emp1.Id, BaseSalary = 10000, Currency = "AED", EffectiveFrom = emp1.HireDate },
