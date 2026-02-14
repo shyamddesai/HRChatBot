@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using HRApp.Core.Entities;
+using Pgvector;
+using Pgvector.EntityFrameworkCore;
 
 namespace HRApp.Infrastructure.Data
 {
@@ -16,6 +18,12 @@ namespace HRApp.Infrastructure.Data
         public DbSet<EmployeeSkill> EmployeeSkills { get; set; }
         public DbSet<LeaveSummary> LeaveSummaries { get; set; }
         public DbSet<Document> Documents { get; set; }
+
+        // Enable vector support for pgvector
+        protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+        {
+            optionsBuilder.UseNpgsql(o => o.UseVector());
+        }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -70,6 +78,18 @@ namespace HRApp.Infrastructure.Data
 
             modelBuilder.Entity<LeaveSummary>()
                 .HasKey(ls => new { ls.EmployeeId, ls.Year });
+
+            modelBuilder.Entity<Employee>()
+                .Property(e => e.GradeNumber)
+                .HasComputedColumnSql(@"CAST(SUBSTRING(""Grade"" FROM '\d+') AS INTEGER)", stored: true);
+
+            modelBuilder.Entity<Employee>()
+                .HasIndex(e => e.GradeNumber);
+
+            // For Documents vector support
+            modelBuilder.Entity<Document>()
+                .Property(d => d.Embedding)
+                .HasColumnType("vector(768)");
         }
     }
 }

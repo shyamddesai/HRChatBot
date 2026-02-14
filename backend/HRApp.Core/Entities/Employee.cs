@@ -11,6 +11,7 @@ namespace HRApp.Core.Entities
         public string Email { get; set; } = string.Empty;
         public string Role { get; set; } = "Employee";  // "HR" or "Employee"
         public string Grade { get; set; } = string.Empty;
+        public int? GradeNumber { get; set; } // Computed for grade comparisons
         public string Department { get; set; } = string.Empty;
         public Guid? ManagerId { get; set; }
         public Employee? Manager { get; set; }

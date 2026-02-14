@@ -10,4 +10,8 @@
     <Folder Include="Entities\" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="Pgvector" Version="0.3.0" />
+  </ItemGroup>
+
 </Project>

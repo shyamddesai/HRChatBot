@@ -1,10 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Bot, Users, Calendar, Clock, UserPlus, LogOut } from 'lucide-react';
+import { Bot, Users, Calendar, Clock, UserPlus, LogOut, Shield, Database } from 'lucide-react';
 import api from '../api';
 import Chat from './Chat';
 
-// Types for our data
 interface Employee {
   id: string;
   fullName: string;
@@ -23,41 +22,80 @@ interface LeaveRequest {
   status: string;
 }
 
+interface UserInfo {
+  role: string;
+  fullName: string;
+}
+
 export default function Dashboard() {
   const [isChatOpen, setIsChatOpen] = useState(false);
+  
+  const userStr = localStorage.getItem('user');
+  const user: UserInfo | null = userStr ? JSON.parse(userStr) : null;
+  const isHR = user?.role === 'HR';
 
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
-    window.location.href = '/'; // or use navigate from react-router
+    window.location.href = '/';
   };
 
-  // Fetch employees (HR only, but we'll just show if available)
   const { data: employees, isLoading: employeesLoading } = useQuery({
     queryKey: ['employees'],
     queryFn: async () => {
       const res = await api.get('/employees');
       return res.data as Employee[];
     },
-    // On error, we can fallback to mock data or show error
+    enabled: isHR // Only fetch all employees if HR
   });
 
-  // Fetch pending leave requests
-  const { data: leaves, isLoading: leavesLoading } = useQuery({
+  const { data: myProfile } = useQuery({
+    queryKey: ['profile'],
+    queryFn: async () => {
+      const res = await api.get('/employees/me');
+      return res.data;
+    }
+  });
+
+  const { data: leaves } = useQuery({
     queryKey: ['leaves'],
     queryFn: async () => {
       const res = await api.get('/leaves?status=Pending');
       return res.data as LeaveRequest[];
     },
+    enabled: isHR
   });
 
-  // Mock stats for demonstration (replace with real data later)
   const stats = [
-    { label: 'Total Employees', value: employees?.length ?? 0, icon: Users, color: 'bg-blue-500' },
-    { label: 'Pending Leaves', value: leaves?.length ?? 0, icon: Calendar, color: 'bg-yellow-500' },
-    { label: 'On Leave Today', value: 3, icon: Clock, color: 'bg-green-500' },
-    { label: 'New Hires (This Month)', value: 2, icon: UserPlus, color: 'bg-purple-500' },
-  ];
+    { 
+      label: 'Total Employees', 
+      value: employees?.length ?? 0, 
+      icon: Users, 
+      color: 'bg-blue-500',
+      visible: isHR 
+    },
+    { 
+      label: 'Pending Leaves', 
+      value: leaves?.length ?? 0, 
+      icon: Calendar, 
+      color: 'bg-yellow-500',
+      visible: isHR 
+    },
+    { 
+      label: 'My Department', 
+      value: myProfile?.department ?? '-', 
+      icon: Database, 
+      color: 'bg-green-500',
+      visible: !isHR 
+    },
+    { 
+      label: 'My Grade', 
+      value: myProfile?.grade ?? '-', 
+      icon: Shield, 
+      color: 'bg-purple-500',
+      visible: !isHR 
+    },
+  ].filter(s => s.visible);
 
   return (
     <div className="flex h-screen relative overflow-hidden bg-gray-50 dark:bg-gray-900">
@@ -66,17 +104,21 @@ export default function Dashboard() {
         {/* Header */}
         <header className="bg-white dark:bg-gray-800 shadow-sm sticky top-0 z-10">
           <div className="px-6 py-4 flex justify-between items-center">
-            <h1 className="text-2xl font-bold text-gray-800 dark:text-white">HR Dashboard</h1>
+            <div>
+              <h1 className="text-2xl font-bold text-gray-800 dark:text-white">HR Dashboard</h1>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                Welcome back, {user?.fullName} {isHR && <span className="text-blue-500 font-medium">(HR Admin)</span>}
+              </p>
+            </div>
             <button
-                onClick={handleLogout}
-                className="p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full"
-                >
-                <LogOut size={20} />
-                </button>
+              onClick={handleLogout}
+              className="p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full"
+            >
+              <LogOut size={20} />
+            </button>
           </div>
         </header>
 
-        {/* Dashboard Content */}
         <main className="p-6">
           {/* Stats Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
@@ -93,30 +135,50 @@ export default function Dashboard() {
             ))}
           </div>
 
-          {/* Employee Table */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow mb-8">
-            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-              <h2 className="text-lg font-semibold text-gray-800 dark:text-white">Employees</h2>
+          {/* Quick Actions for HR */}
+          {isHR && (
+            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-8">
+              <h3 className="text-sm font-semibold text-blue-900 dark:text-blue-300 mb-2">Quick Actions</h3>
+              <div className="flex gap-3">
+                <button className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition">
+                  + New Employee
+                </button>
+                <button className="px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-sm rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                  Generate Report
+                </button>
+                <button className="px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-sm rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                  Approve Leaves
+                </button>
+              </div>
             </div>
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                <thead className="bg-gray-50 dark:bg-gray-700">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Name</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Email</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Department</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Grade</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                  {employeesLoading ? (
-                    <tr><td colSpan={5} className="px-6 py-4 text-center text-gray-500">Loading...</td></tr>
-                  ) : employees && employees.length > 0 ? (
-                    employees.map((emp) => (
-                      <tr key={emp.id}>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">{emp.fullName}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{emp.email}</td>
+          )}
+
+          {/* Employee Table - HR Only */}
+          {isHR && (
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow mb-8">
+              <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+                <h2 className="text-lg font-semibold text-gray-800 dark:text-white">All Employees</h2>
+                <span className="text-sm text-gray-500">{employees?.length ?? 0} total</span>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                  <thead className="bg-gray-50 dark:bg-gray-700">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Name</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Department</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Grade</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                    {employeesLoading ? (
+                      <tr><td colSpan={4} className="px-6 py-4 text-center text-gray-500">Loading...</td></tr>
+                    ) : employees?.map((emp) => (
+                      <tr key={emp.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm font-medium text-gray-900 dark:text-white">{emp.fullName}</div>
+                          <div className="text-sm text-gray-500 dark:text-gray-400">{emp.email}</div>
+                        </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{emp.department}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{emp.grade}</td>
                         <td className="px-6 py-4 whitespace-nowrap">
@@ -127,46 +189,43 @@ export default function Dashboard() {
                           </span>
                         </td>
                       </tr>
-                    ))
-                  ) : (
-                    <tr><td colSpan={5} className="px-6 py-4 text-center text-gray-500">No employees found.</td></tr>
-                  )}
-                </tbody>
-              </table>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
+          )}
 
-          {/* Pending Leave Requests */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
-            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-              <h2 className="text-lg font-semibold text-gray-800 dark:text-white">Pending Leave Requests</h2>
+          {/* My Profile - Employee View */}
+          {!isHR && myProfile && (
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow mb-8">
+              <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <h2 className="text-lg font-semibold text-gray-800 dark:text-white">My Profile</h2>
+              </div>
+              <div className="p-6 grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs text-gray-500 uppercase">Full Name</label>
+                  <p className="text-sm font-medium text-gray-900 dark:text-white">{myProfile.fullName}</p>
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 uppercase">Email</label>
+                  <p className="text-sm font-medium text-gray-900 dark:text-white">{myProfile.email}</p>
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 uppercase">Department</label>
+                  <p className="text-sm font-medium text-gray-900 dark:text-white">{myProfile.department}</p>
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 uppercase">Grade</label>
+                  <p className="text-sm font-medium text-gray-900 dark:text-white">{myProfile.grade}</p>
+                </div>
+              </div>
             </div>
-            <div className="divide-y divide-gray-200 dark:divide-gray-700">
-              {leavesLoading ? (
-                <p className="px-6 py-4 text-gray-500">Loading...</p>
-              ) : leaves && leaves.length > 0 ? (
-                leaves.map((leave) => (
-                  <div key={leave.id} className="px-6 py-4 flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-gray-900 dark:text-white">{leave.employeeName}</p>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
-                        {leave.type} · {new Date(leave.startDate).toLocaleDateString()} - {new Date(leave.endDate).toLocaleDateString()}
-                      </p>
-                    </div>
-                    <span className="px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">
-                      {leave.status}
-                    </span>
-                  </div>
-                ))
-              ) : (
-                <p className="px-6 py-4 text-gray-500">No pending leaves.</p>
-              )}
-            </div>
-          </div>
+          )}
         </main>
       </div>
 
-      {/* Floating Chat Button (visible when chat is closed) */}
+      {/* Floating Chat Button */}
       {!isChatOpen && (
         <button
           onClick={() => setIsChatOpen(true)}
@@ -178,7 +237,7 @@ export default function Dashboard() {
 
       {/* Sliding AI Chat Sidebar */}
       <div
-        className={`fixed top-0 right-0 h-full w-[350px] transform transition-transform duration-300 ease-in-out z-50 ${
+        className={`fixed top-0 right-0 h-full w-[400px] transform transition-transform duration-300 ease-in-out z-50 ${
           isChatOpen ? 'translate-x-0' : 'translate-x-full'
         }`}
       >

@@ -11,11 +11,13 @@ namespace HRApp.API.Services
         private readonly IConfiguration _configuration;
         private readonly string _apiKey;
         private readonly string _baseUrl = "https://api.groq.com/openai/v1/chat/completions";
+        private readonly ILogger<GroqService> _logger;
 
-        public GroqService(HttpClient httpClient, IConfiguration configuration)
+        public GroqService(HttpClient httpClient, IConfiguration configuration, ILogger<GroqService> logger)
         {
             _httpClient = httpClient;
             _configuration = configuration;
+            _logger = logger;
             _apiKey = _configuration["Groq:ApiKey"] ?? throw new InvalidOperationException("Groq API key is missing.");
         }
 
@@ -43,9 +45,9 @@ namespace HRApp.API.Services
         {
             var request = new GroqChatRequest
             {
-                Model = "llama-3.3-70b-versatile", // or from config
+                Model = "moonshotai/kimi-k2-instruct-0905",
                 Messages = messages,
-                Temperature = 0.7
+                Temperature = 0.1 // LOW temperature for deterministic SQL generation
             };
 
             if (functions != null && functions.Any())
@@ -64,9 +66,12 @@ namespace HRApp.API.Services
 
             var options = new JsonSerializerOptions
             {
-                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+                PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower
             };
             var json = JsonSerializer.Serialize(request, options);
+            // _logger.LogInformation("Request: {Json}", json);
+
             var content = new StringContent(json, Encoding.UTF8, "application/json");
 
             _httpClient.DefaultRequestHeaders.Clear();
@@ -74,6 +79,8 @@ namespace HRApp.API.Services
 
             var response = await _httpClient.PostAsync(_baseUrl, content);
             var responseJson = await response.Content.ReadAsStringAsync();
+
+            _logger.LogInformation("Response: {ResponseJson}", responseJson);
 
             if (!response.IsSuccessStatusCode)
             {
