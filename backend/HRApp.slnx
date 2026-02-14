@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="HRApp.API/HRApp.API.csproj" />
+  <Project Path="HRApp.Core/HRApp.Core.csproj" />
+  <Project Path="HRApp.Infrastructure/HRApp.Infrastructure.csproj" />
+</Solution>
