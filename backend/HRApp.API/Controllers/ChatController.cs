@@ -260,7 +260,7 @@ namespace HRApp.API.Controllers
                     string employeeName = nameObj?.ToString() ?? "";
                     if (string.IsNullOrWhiteSpace(employeeName))
                         return Ok(new { answer = "Employee name cannot be empty." });
-                        
+
                     var employee = await _context.Employees.FirstOrDefaultAsync(e => e.FullName.Contains(employeeName) && e.Status == "Active");
                     if (employee == null)
                         return Ok(new { answer = $"No active employee found with name '{employeeName}'.", type = "error" });
@@ -288,8 +288,6 @@ namespace HRApp.API.Controllers
                     sql = ApplyRowLevelSecurity(sql, userRole!, userId);
 
                     var (results, columns) = await ExecuteDynamicSqlAsync(sql);
-                    
-                    // Format results through LLM for natural language
                     var formattedAnswer = await FormatResultsWithLlmAsync(request.Message, results, columns, explanation);
                     
                     return Ok(new 
@@ -681,97 +679,128 @@ namespace HRApp.API.Controllers
 
         private async Task<string> FormatResultsWithLlmAsync(string originalQuestion, List<Dictionary<string, object>> results, List<string> columns, string? explanation)
         {
-            if (results.Count == 0)
+            Console.WriteLine($"[DEBUG] FormatResultsWithLlmAsync called with {results?.Count ?? 0} results");
+
+            if (results == null || results.Count == 0)
                 return "I found no matching records for your query.";
 
             // For small results, check if it's a loan/hypothetical query that needs special formatting
-            var isLoanQuery = originalQuestion.ToLower().Contains("loan") || 
-                            originalQuestion.ToLower().Contains("eligible") ||
-                            originalQuestion.ToLower().Contains("qualify");
-            
-            var isHypothetical = originalQuestion.ToLower().Contains("if") || 
-                                originalQuestion.ToLower().Contains("what if") ||
-                                originalQuestion.ToLower().Contains("would") ||
-                                originalQuestion.ToLower().Contains("doubled") ||
-                                originalQuestion.ToLower().Contains("increase") ||
-                                originalQuestion.ToLower().Contains("how much") ||
-                                originalQuestion.ToLower().Contains("need");
+            var lowerQ = originalQuestion.ToLower();
+            var isLoanQuery = lowerQ.Contains("loan") || lowerQ.Contains("eligible") || lowerQ.Contains("qualify");
+            var isHypothetical = lowerQ.Contains("if") || lowerQ.Contains("would") || lowerQ.Contains("doubled") || lowerQ.Contains("increase");
 
-            // For small results with loan/hypothetical, still use LLM for better explanation
-            if (results.Count <= 5 && !isLoanQuery)
-            {
-                var summary = $"Found {results.Count} result(s):\n\n";
-                foreach (var row in results)
-                {
-                    summary += "• " + string.Join(", ", row.Select(kv => $"{kv.Key}: {kv.Value}")) + "\n";
-                }
-                return summary;
-            }
+            _logger.LogInformation("isLoanQuery: {IsLoan}, isHypothetical: {IsHypo}", isLoanQuery, isHypothetical);
 
-            var dataJson = JsonSerializer.Serialize(new { columns, rows = results.Take(20) });
+            var dataJson = JsonSerializer.Serialize(new { 
+                rowCount = results.Count, 
+                sample = results.Take(15) 
+            }, new JsonSerializerOptions { 
+                WriteIndented = true,
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            });
+
+            _logger.LogInformation("Data JSON length: {Length}", dataJson.Length);
             
             string prompt;
             
-            if (isLoanQuery && isHypothetical)
+            if (isLoanQuery || isHypothetical)
             {
-                prompt = $@"The user asked a hypothetical loan question: ""{originalQuestion}""
+                prompt = $@"The user is asking about loan eligibility: ""{originalQuestion}""
 
-                Their current data from database:
+                COMPANY LOAN RULES:
+                - Car Loan: Must be Grade 10 or higher AND Salary >= 8,000 AED. Max amount is 5x monthly salary.
+                - Housing Loan: Must be Grade 12 or higher AND Salary >= 15,000 AED AND at least 2 years tenure. Max amount is 10x monthly salary.
+                - Personal Loan: Any active employee qualifies. Max amount is 1x monthly salary.
+
+                USER DATA FROM DATABASE:
                 {dataJson}
 
-                Explain:
-                1. Their current situation (grade, salary, existing loans)
-                2. Answer their specific hypothetical scenario with calculations
-                3. Show the math clearly (e.g., ""5x salary rule: 25,000 × 5 = 125,000 max"")
-                4. Be conversational and helpful
-
-                Guidelines:
-                - Car loans: max ~5x salary, need Grade 10+, Salary 8000+
-                - Housing: max ~10x salary, need Grade 12+, Salary 15000+, 2+ years tenure
-                - Personal: max 1x salary, any active employee";
-            }
-            else if (isLoanQuery)
-            {
-                prompt = $@"The user asked about loan eligibility: ""{originalQuestion}""
-
-                Their data:
-                {dataJson}
-
-                Explain their eligibility clearly:
+                INSTRUCTIONS:
+                1. Compare the user's data (Grade, Salary, Tenure) against the rules above.
+                2. If they are asking a 'What if' (hypothetical), calculate the difference between their current status and the hypothetical goal.
+                3. Provide a natural, encouraging response. Do not show raw JSON.
+                4. If they are eligible, state the maximum amount they can borrow.
+                5. Explain their eligibility clearly:
                 - Which requirements they meet or don't meet
                 - What max amount they qualify for
                 - Any existing loans that might affect eligibility
 
-                Use these rules:
-                - Car: Grade 10+, Salary 8000+, max 5x salary (capped at 100k)
-                - Housing: Grade 12+, Salary 15000+, 2+ years tenure, max 10x salary (capped at 500k)
-                - Personal: Any active employee, max 1x salary";
+                Hypothetical Explaination:
+                1. Their current situation (grade, salary, existing loans)
+                2. Answer their specific hypothetical scenario with calculations
+                3. Show the math clearly (e.g., ""5x salary rule: 25,000 × 5 = 125,000 max"")
+                4. Be conversational and helpful";
             }
-            else
+            else // For regular data queries, use natural language
             {
-                prompt = $@"Original question: ""{originalQuestion}""
-                Query explanation: {explanation}
-                Found {results.Count} records. Here's a sample:
-
+                prompt = $@"You are an HR assistant summarizing database results for a user.
+                User Question: ""{originalQuestion}""
+                Explanation of query: {explanation}
+                Number of records found: {results.Count}
+                
+                DATA RESULTS:
                 {dataJson}
 
-                Provide a concise, helpful summary. If salary data is present, note the currency (AED). 
-                Be conversational but professional.";
+                Provide a friendly, conversational summary. Follow these guidelines:
+                - If there's a single record, describe it like: ""Here is the profile for [Name]: [key details]""
+                - If there are multiple records, introduce them like: ""I found {results.Count} employees:"" then list them with key attributes (e.g., name, department, grade). Use bullet points if helpful.
+                - For salary data, always mention the amount and currency (AED). For example: ""The current monthly salary is 25,000 AED.""
+                - If the user asked for a count (e.g., ""how many""), simply state the number.
+                - Do not just repeat the JSON. Be concise but informative.
+                - If there are no records, say ""No matching records found.""
+                - Use a professional yet warm tone.";
             }
 
             try
             {
-                var completion = await _groqService.GetChatCompletionAsync(
-                    "You are an HR assistant explaining loan eligibility and employee data.", 
-                    prompt, 
-                    null
-                );
-                return completion.Choices.FirstOrDefault()?.Message?.Content ?? "Data retrieved successfully.";
+                var messages = new List<GroqMessage>
+                {
+                    new GroqMessage { Role = "system", Content = "You are an HR assistant that explains data in plain, natural language. Never show raw database fields." },
+                    new GroqMessage { Role = "user", Content = prompt }
+                };
+
+                Console.WriteLine("[DEBUG] Calling Groq service...");
+
+                var completion = await _groqService.GetChatCompletionAsync(messages, null);
+                var response = completion.Choices.FirstOrDefault()?.Message?.Content?.Trim();
+                
+                _logger.LogInformation("FormatResultsWithLlmAsync LLM response: {Response}", response ?? "(null)");
+
+                if (!string.IsNullOrWhiteSpace(response))
+                    return response;
+
+                // Only use fallback if LLM returns empty
+                return FormatSimpleFallback(results, columns, originalQuestion);
             }
-            catch
+            catch (Exception ex)
             {
-                return $"Found {results.Count} records. Sample: {JsonSerializer.Serialize(results.First())}";
+                _logger.LogWarning(ex, "LLM formatting failed, using fallback");
+                return FormatSimpleFallback(results, columns, originalQuestion);
             }
+        }
+
+        private string FormatSimpleFallback(List<Dictionary<string, object>> results, List<string> columns, string question)
+        {
+            if (results.Count == 0) return "No records found.";
+            
+            var row = results[0];
+            
+            // Salary query fallback
+            if (row.ContainsKey("BaseSalary") && row.TryGetValue("Currency", out var currency))
+            {
+                var salary = row["BaseSalary"];
+                return $"Your current monthly salary is {currency} {Convert.ToDecimal(salary):N0}.";
+            }
+            
+            // Generic single record fallback
+            if (results.Count == 1)
+            {
+                var parts = columns.Where(c => row.TryGetValue(c, out var v) && v != null)
+                                .Select(c => $"{c.Replace("\"", "").Replace("_", " ")}: {row[c]}");
+                return $"Here's what I found: {string.Join(", ", parts)}.";
+            }
+            
+            return $"Found {results.Count} records matching your query.";
         }
     }
 }
