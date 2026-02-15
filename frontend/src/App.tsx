@@ -2,7 +2,8 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
-import type { JSX } from 'react';
+import { useEffect, type JSX } from 'react';
+import api from './api';
 
 // Create a client for React Query
 const queryClient = new QueryClient();
@@ -15,6 +16,11 @@ const ProtectedRoute = ({ children }: { children: JSX.Element }) => {
   }
   return children;
 };
+
+// Verify authentication on page load
+useEffect(() => {
+  api.get('/employees/me').catch(() => {});
+}, []);
 
 function App() {
   return (

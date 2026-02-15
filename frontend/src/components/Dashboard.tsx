@@ -339,8 +339,9 @@ export default function Dashboard() {
   const { data: activeLoans } = useQuery({
     queryKey: ['activeLoansCount'],
     queryFn: async () => {
-      const res = await api.get('/loans?status=Active&count=true');
-      return res.data.count;
+      // const res = await api.get('/loans?status=Active&count=true');
+      // return res.data.count;
+      return 0;
     },
     enabled: isHR
   });
