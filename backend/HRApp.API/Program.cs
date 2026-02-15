@@ -5,9 +5,12 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
 using HRApp.Infrastructure.Data;
 using HRApp.Infrastructure.Seed;
+using QuestPDF.Infrastructure;
 using HRApp.API.Services;
 
 var builder = WebApplication.CreateBuilder(args);
+
+QuestPDF.Settings.License = LicenseType.Community;
 
 // Add services to the container.
 builder.Services.AddControllers();

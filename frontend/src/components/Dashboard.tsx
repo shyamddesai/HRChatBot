@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { 
   Bot, Users, LogOut, Plus, RefreshCcw, AlertCircle, X, CheckCircle, 
   UserPlus, MoreHorizontal, UserX, Search, Filter, ArrowUpDown, 
-  Building2, Mail, Calendar, Briefcase, 
+  Building2, Mail, Calendar, Briefcase, FileText, 
   Edit3, UserCheck, ChevronDown, ChevronUp, TrendingUp, History
 } from 'lucide-react';
 import api from '../api';
@@ -627,73 +627,95 @@ export default function Dashboard() {
                           
                           {/* Actions Dropdown */}
                           {showActionsMenu === emp.id && (
-                            <>
-                                <div
-                                ref={dropdownRef}
-                                className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-20 py-1"
-                                onClick={() => setShowActionsMenu(null)}
-                              />
-                              <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-20 py-1">
-                                <button
-                                  onClick={() => openEditModal(emp)}
-                                  className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2"
-                                >
-                                  <Edit3 size={16} />
-                                  Edit Details
-                                </button>
+                            <div
+                              ref={dropdownRef}
+                              className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-20 py-1"
+                            >
+                              <button
+                                onClick={() => openEditModal(emp)}
+                                className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2"
+                              >
+                                <Edit3 size={16} />
+                                Edit Details
+                              </button>
 
+                              <button
+                                onClick={() => {
+                                  setSelectedEmployee(emp);
+                                  setShowPromoteModal(true);
+                                  setShowActionsMenu(null);
+                                }}
+                                className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2"
+                              >
+                                <TrendingUp size={16} />
+                                Promote
+                              </button>
+
+                              {/* Salary Certificate */}
+                              <button
+                                onClick={async () => {
+                                  try {
+                                    const response = await api.get(`/SalaryCertificate/${emp.id}`, { responseType: 'blob' });
+                                    const url = window.URL.createObjectURL(new Blob([response.data]));
+                                    const link = document.createElement('a');
+                                    link.href = url;
+                                    link.setAttribute('download', `Salary_Certificate_${emp.employeeCode}.pdf`);
+                                    document.body.appendChild(link);
+                                    link.click();
+                                    link.remove();
+                                    window.URL.revokeObjectURL(url);
+                                  } catch (error) {
+                                    console.error('Download failed', error);
+                                    alert('Failed to generate certificate. Please try again.');
+                                  }
+                                  setShowActionsMenu(null);
+                                }}
+                                className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2"
+                              >
+                                <FileText size={16} />
+                                Salary Certificate
+                              </button>
+
+                              <button
+                                onClick={async () => {
+                                  setSelectedEmployee(emp);
+                                  try {
+                                    const res = await api.get(`/employees/${emp.id}`);
+                                    setSalaryHistory(res.data.salaries || []);
+                                    setShowSalaryHistoryModal(true);
+                                  } catch (error) {
+                                    console.error('Failed to fetch salary history', error);
+                                  }
+                                  setShowActionsMenu(null);
+                                }}
+                                className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2"
+                              >
+                                <History size={16} />
+                                Salary History
+                              </button>
+                              
+                              {emp.status === 'Active' ? (
                                 <button
                                   onClick={() => {
                                     setSelectedEmployee(emp);
-                                    setShowPromoteModal(true);
+                                    setShowDeactivateModal(true);
                                     setShowActionsMenu(null);
                                   }}
-                                  className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2"
+                                  className="w-full px-4 py-2 text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2"
                                 >
-                                  <TrendingUp size={16} />
-                                  Promote
+                                  <UserX size={16} />
+                                  Deactivate
                                 </button>
+                              ) : (
                                 <button
-                                  onClick={async () => {
-                                    setSelectedEmployee(emp);
-                                    try {
-                                      const res = await api.get(`/employees/${emp.id}`);
-                                      setSalaryHistory(res.data.salaries || []);
-                                      setShowSalaryHistoryModal(true);
-                                    } catch (error) {
-                                      console.error('Failed to fetch salary history', error);
-                                    }
-                                    setShowActionsMenu(null);
-                                  }}
-                                  className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2"
+                                  onClick={() => openReactivateModal(emp)}
+                                  className="w-full px-4 py-2 text-left text-sm text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 flex items-center gap-2"
                                 >
-                                  <History size={16} />
-                                  Salary History
+                                  <UserCheck size={16} />
+                                  Reactivate
                                 </button>
-                                
-                                {emp.status === 'Active' ? (
-                                  <button
-                                    onClick={() => {
-                                      setSelectedEmployee(emp);
-                                      setShowDeactivateModal(true);
-                                      setShowActionsMenu(null);
-                                    }}
-                                    className="w-full px-4 py-2 text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2"
-                                  >
-                                    <UserX size={16} />
-                                    Deactivate
-                                  </button>
-                                ) : (
-                                  <button
-                                    onClick={() => openReactivateModal(emp)}
-                                    className="w-full px-4 py-2 text-left text-sm text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 flex items-center gap-2"
-                                  >
-                                    <UserCheck size={16} />
-                                    Reactivate
-                                  </button>
-                                )}
-                              </div>
-                            </>
+                              )}
+                            </div>
                           )}
                         </td>
                       </tr>
