@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { 
   Bot, Users, LogOut, Plus, RefreshCcw, AlertCircle, X, CheckCircle, 
@@ -28,14 +28,6 @@ interface UserInfo {
   fullName: string;
 }
 
-interface Salary {
-  id: string;
-  baseSalary: number;
-  currency: string;
-  effectiveFrom: string;
-  effectiveTo?: string;
-}
-
 type SortField = 'fullName' | 'department' | 'grade' | 'hireDate' | 'status';
 type SortOrder = 'asc' | 'desc';
 
@@ -57,6 +49,8 @@ export default function Dashboard() {
   const [showSalaryHistoryModal, setShowSalaryHistoryModal] = useState(false);
   const [salaryHistory, setSalaryHistory] = useState<any[]>([]);
   const queryClient = useQueryClient();
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
 
   const userStr = localStorage.getItem('user');
   const user: UserInfo | null = userStr ? JSON.parse(userStr) : null;
@@ -86,6 +80,26 @@ export default function Dashboard() {
     localStorage.removeItem('user');
     window.location.href = '/';
   };
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (!showActionsMenu) return;
+
+      // Approximate scrollbar width – if click is near the right edge, treat as scrollbar click and ignore
+      const scrollbarWidth = 20;
+      const isScrollbarClick = event.clientX > window.innerWidth - scrollbarWidth;
+      if (isScrollbarClick) return;
+
+      const target = event.target as Node;
+      if (dropdownRef.current && !dropdownRef.current.contains(target) &&
+          buttonRef.current && !buttonRef.current.contains(target)) {
+        setShowActionsMenu(null);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showActionsMenu, setShowActionsMenu]);
 
   const { data: employees, isLoading: employeesLoading } = useQuery({
     queryKey: ['employees', includeInactive],
@@ -485,9 +499,9 @@ export default function Dashboard() {
                 )}
               </div>
 
-              <div className="overflow-x-auto">
+                <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
                 <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                  <thead className="bg-gray-50 dark:bg-gray-700">
+                  <thead className="sticky top-0 z-10 bg-white dark:bg-gray-800">
                     <tr>
                       <th 
                         className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
@@ -604,6 +618,7 @@ export default function Dashboard() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium relative">
                           <button
+                            ref={buttonRef}
                             onClick={() => setShowActionsMenu(showActionsMenu === emp.id ? null : emp.id)}
                             className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
                           >
@@ -613,8 +628,9 @@ export default function Dashboard() {
                           {/* Actions Dropdown */}
                           {showActionsMenu === emp.id && (
                             <>
-                              <div 
-                                className="fixed inset-0 z-10" 
+                                <div
+                                ref={dropdownRef}
+                                className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-20 py-1"
                                 onClick={() => setShowActionsMenu(null)}
                               />
                               <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-20 py-1">
