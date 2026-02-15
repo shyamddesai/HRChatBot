@@ -61,6 +61,11 @@ namespace HRApp.API.Controllers
             - Always use double quotes around table and column names (e.g., SELECT ""FullName"" FROM ""Employees"").
             - Parameter values can be placed directly in the SQL (we handle sanitization), but use proper escaping if needed.
 
+            ACTIONS (HR only):
+            - create_employee: Creates a new employee. Requires: fullName, email, department, grade, salary.
+            - promote_employee: Promotes an employee. Requires: employeeName, newGrade (optional newSalary).
+            - generate_salary_certificate: Generates a salary certificate PDF. Requires: employeeName.
+
             Loan Guidelines (for reference):
             - If the user asks about loan eligibility, car loans, housing loans, or personal loans, set intent to ""loan_eligibility"", include the loan type in your response, and you can query the ""Loans"" table.
             - Car Loan: Grade 10+, Salary >= 8000 AED, no existing active car loan
@@ -71,12 +76,39 @@ namespace HRApp.API.Controllers
 
             INSTRUCTIONS:
             1. Analyze the user's question
-            2. Generate a SAFE, read-only SQL query to answer it
+            2. If it's a data query, generate a SAFE, read-only SQL query.
+            3. If it's an action, return a JSON with the appropriate intent and required fields.
             3. Return ONLY a JSON object with this exact format:
+            
+            For data queries:
             {{
                 ""intent"": ""description of what you're doing"",
                 ""sql"": ""SELECT ..."",
                 ""explanation"": ""human-readable explanation of the query""
+            }}
+
+            For create_employee:
+            {{
+                ""intent"": ""create_employee"",
+                ""fullName"": ""..."",
+                ""email"": ""..."",
+                ""department"": ""..."",
+                ""grade"": ""..."",
+                ""salary"": 12345
+            }}
+
+            For promote_employee:
+            {{
+                ""intent"": ""promote_employee"",
+                ""employeeName"": ""..."",
+                ""newGrade"": ""..."",
+                ""newSalary"": 12345   // optional
+            }}
+
+            For generate_salary_certificate:
+            {{
+                ""intent"": ""generate_salary_certificate"",
+                ""employeeName"": ""...""
             }}
 
             For general chat that doesn't require database access:
@@ -94,6 +126,15 @@ namespace HRApp.API.Controllers
 
             User: ""Would my maximum car loan increase if my salary doubled?""
             Response: {{""intent"": ""analyze_car_loan_scenario"", ""sql"": ""SELECT e.""Grade"", (SELECT s.""BaseSalary"" FROM ""Salaries"" s WHERE s.""EmployeeId"" = e.""Id"" AND s.""EffectiveTo"" IS NULL) as current_salary, (SELECT COUNT(*) FROM ""Loans"" WHERE ""EmployeeId"" = e.""Id"" AND ""LoanType"" = 'Car' AND ""Status"" = 'Active') as active_car_loans FROM ""Employees"" e WHERE e.""Id"" = '{userId}'"", ""explanation"": ""Getting current salary to calculate current vs doubled scenario""}}
+
+            User: ""Hire Jane Cooper as a Finance manager with salary 14000""
+            Response: {{""intent"": ""create_employee"", ""fullName"": ""Jane Cooper"", ""email"": ""jane.cooper@dgi.com"", ""department"": ""Finance"", ""grade"": ""Grade 11"", ""salary"": 14000}}
+
+            User: ""Generate a salary certificate for Jane Smith""
+            Response: {{""intent"": ""generate_salary_certificate"", ""employeeName"": ""Jane Smith""}}
+
+            User: ""Promote John Doe to Grade 12""
+            Response: {{""intent"": ""promote_employee"", ""employeeName"": ""John Doe"", ""newGrade"": ""Grade 12""}}
             
             User: ""How many IT employees are there?""
             Response: {{""intent"": ""count_query"", ""sql"": ""SELECT COUNT(*) FROM ""Employees"" WHERE ""Department"" = 'IT' AND ""Status"" = 'Active'"", ""explanation"": ""Counting active IT employees""}}";
@@ -117,7 +158,7 @@ namespace HRApp.API.Controllers
                 _logger.LogInformation("LLM Raw Response: {Response}", llmResponse);
 
                 // Parse the JSON response from LLM
-                var (intent, sql, explanation, conversationResponse) = ParseLlmResponse(llmResponse);
+                var (intent, sql, explanation, conversationResponse, parameters) = ParseLlmResponse(llmResponse);
 
                 // Handle conversational queries
                 if (intent == "conversation" && !string.IsNullOrEmpty(conversationResponse))
@@ -147,26 +188,92 @@ namespace HRApp.API.Controllers
                     }
                 }
 
-                // Check if this is a loan eligibility query
-            //    if (intent.Contains("loan") || !string.IsNullOrEmpty(parsedLoanType))
-            //     {
-            //         var loanType = !string.IsNullOrEmpty(parsedLoanType) 
-            //             ? parsedLoanType 
-            //             : ExtractLoanType(request.Message);
-                    
-            //         var loanService = new LoanService(_context);
-                    
-            //         // If user asks broadly ("any loan", "what loans"), check all types
-            //         if (loanType == "All" || request.Message.ToLower().Contains("any") || request.Message.ToLower().Contains("what loans"))
-            //         {
-            //             var results = await CheckAllLoans(loanService, userId);
-            //             return Ok(new { answer = results, type = "loan_check_all" });
-            //         }
-                    
-            //         var eligibility = await loanService.CheckEligibilityAsync(userId, loanType);
-            //         var response = FormatLoanResponse(eligibility, loanType);
-            //         return Ok(new { answer = response, type = "loan_check" });
-            //     }
+                if (intent == "create_employee")
+                {
+                    if (userRole != "HR") return Ok(new { answer = "Only HR can create employees.", type = "error" });
+
+                    // Extract parameters (with validation)
+                    if (!parameters.TryGetValue("fullName", out var fullNameObj) ||
+                        !parameters.TryGetValue("email", out var emailObj) ||
+                        !parameters.TryGetValue("department", out var deptObj) ||
+                        !parameters.TryGetValue("grade", out var gradeObj) ||
+                        !parameters.TryGetValue("salary", out var salaryObj))
+                    {
+                        return Ok(new { answer = "Missing required fields for creating an employee. Please provide full name, email, department, grade, and salary." });
+                    }
+
+                    var createReq = new EmployeesController.CreateEmployeeRequest
+                    {
+                        FullName = fullNameObj.ToString()!,
+                        Email = emailObj.ToString()!,
+                        Department = deptObj.ToString()!,
+                        Grade = gradeObj.ToString()!,
+                        Role = "Employee",
+                        BaseSalary = Convert.ToDecimal(salaryObj)
+                    };
+
+                    // Reuse the CreateEmployee method (or call it via a shared service)
+                    var createResult = await new EmployeesController(_context).CreateEmployee(createReq);
+                    if (createResult.Result is BadRequestObjectResult bad)
+                        return Ok(new { answer = $"Error: {bad.Value}", type = "error" });
+
+                    return Ok(new { answer = $"✅ Employee {createReq.FullName} created successfully.", type = "action_success" });
+                }
+
+                // Handle promote employee
+                if (intent == "promote_employee")
+                {
+                    if (userRole != "HR") return Ok(new { answer = "Only HR can promote employees.", type = "error" });
+
+                    if (!parameters.TryGetValue("employeeName", out var nameObj) ||
+                        !parameters.TryGetValue("newGrade", out var gradeObj))
+                    {
+                        return Ok(new { answer = "Please specify the employee name and new grade." });
+                    }
+
+                    string employeeName = nameObj?.ToString() ?? "";
+                    string newGrade = gradeObj?.ToString() ?? "";
+
+                    if (string.IsNullOrWhiteSpace(employeeName) || string.IsNullOrWhiteSpace(newGrade))
+                        return Ok(new { answer = "Employee name and new grade cannot be empty." });
+
+                    decimal? newSalary = parameters.TryGetValue("newSalary", out var salaryObj) ? Convert.ToDecimal(salaryObj) : null;
+
+                    var employee = await _context.Employees.FirstOrDefaultAsync(e => e.FullName.Contains(employeeName) && e.Status == "Active");
+                    if (employee == null)
+                        return Ok(new { answer = $"No active employee found with name '{employeeName}'.", type = "error" });
+
+                    var promoteRequest = new EmployeesController.PromoteRequest { NewGrade = newGrade, NewSalary = newSalary ?? 0 };
+                    var promoteResult = await new EmployeesController(_context).PromoteEmployee(employee.Id, promoteRequest);
+                    if (promoteResult is BadRequestObjectResult bad)
+                        return Ok(new { answer = $"Error: {bad.Value}", type = "error" });
+
+                    return Ok(new { answer = $"✅ {employee.FullName} promoted to {newGrade} successfully.", type = "action_success" });
+                }
+
+                // Handle salary certificate
+                if (intent == "generate_salary_certificate")
+                {
+                    if (!parameters.TryGetValue("employeeName", out var nameObj))
+                        return Ok(new { answer = "Please specify the employee name." });
+
+                    string employeeName = nameObj?.ToString() ?? "";
+                    if (string.IsNullOrWhiteSpace(employeeName))
+                        return Ok(new { answer = "Employee name cannot be empty." });
+                        
+                    var employee = await _context.Employees.FirstOrDefaultAsync(e => e.FullName.Contains(employeeName) && e.Status == "Active");
+                    if (employee == null)
+                        return Ok(new { answer = $"No active employee found with name '{employeeName}'.", type = "error" });
+
+                    return Ok(new
+                    {
+                        answer = $"Click the button below to download the salary certificate for {employee.FullName}.",
+                        type = "certificate",
+                        employeeId = employee.Id,
+                        employeeName = employee.FullName,
+                        employeeCode = employee.EmployeeCode
+                    });
+                }
 
                 // Validate and execute SQL
                 if (!string.IsNullOrEmpty(sql))
@@ -279,7 +386,7 @@ namespace HRApp.API.Controllers
                 ";
         }
 
-        private (string intent, string? sql, string? explanation, string? conversationResponse) ParseLlmResponse(string response)
+        private (string intent, string? sql, string? explanation, string? conversationResponse, Dictionary<string, object> parameters) ParseLlmResponse(string response)
         {
             try
             {
@@ -303,14 +410,31 @@ namespace HRApp.API.Controllers
                 var explanation = root.TryGetProperty("explanation", out var expProp) ? expProp.GetString() : null;
                 var convResponse = root.TryGetProperty("response", out var respProp) ? respProp.GetString() : null;
                 var loanType = root.TryGetProperty("loan_type", out var loanProp) ? loanProp.GetString() : null;
+                var parameters = new Dictionary<string, object>();
 
-                return (intent, sql, explanation, convResponse);
+                // Extract fields that might appear in action intents
+                foreach (var prop in new[] { "fullName", "email", "department", "grade", "salary", "newGrade", "newSalary", "employeeName", "loanType" })
+                {
+                    if (root.TryGetProperty(prop, out var value))
+                    {
+                        parameters[prop] = value.ValueKind switch
+                        {
+                            JsonValueKind.Number => value.GetDecimal(),
+                            JsonValueKind.String => value.GetString()!,
+                            JsonValueKind.True => true,
+                            JsonValueKind.False => false,
+                            _ => value.GetRawText()
+                        };
+                    }
+                }
+
+                return (intent, sql, explanation, convResponse, parameters);
             }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Failed to parse LLM response as JSON: {Response}", response);
                 // Fallback: treat as conversation
-                return ("conversation", null, null, response);
+                return ("conversation", null, null, response, new Dictionary<string, object>());
             }
         }
 
