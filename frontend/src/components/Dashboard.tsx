@@ -15,6 +15,7 @@ interface Employee {
   email: string;
   department: string;
   grade: string;
+  gradeNumber?: number;
   status: string;
   employeeCode: string;
   hireDate: string;
@@ -42,8 +43,8 @@ export default function Dashboard() {
   const [searchQuery, setSearchQuery] = useState('');
   const [includeInactive, setIncludeInactive] = useState(false);
   const [departmentFilter, setDepartmentFilter] = useState<string>('all');
-  const [sortField, setSortField] = useState<SortField>('fullName');
-  const [sortOrder, setSortOrder] = useState<SortOrder>('asc');
+  const [sortField, setSortField] = useState<SortField>('hireDate');
+  const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [showFilters, setShowFilters] = useState(false);
   const [showPromoteModal, setShowPromoteModal] = useState(false);
   const [showSalaryHistoryModal, setShowSalaryHistoryModal] = useState(false);
@@ -320,7 +321,9 @@ export default function Dashboard() {
           comparison = a.department.localeCompare(b.department);
           break;
         case 'grade':
-          comparison = a.grade.localeCompare(b.grade);
+          const aNum = a.gradeNumber ?? (parseInt(a.grade.replace('Grade ', '')) || 0);
+          const bNum = b.gradeNumber ?? (parseInt(b.grade.replace('Grade ', '')) || 0);
+          comparison = aNum - bNum;
           break;
         case 'hireDate':
           comparison = new Date(a.hireDate).getTime() - new Date(b.hireDate).getTime();

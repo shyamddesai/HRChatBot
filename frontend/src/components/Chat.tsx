@@ -59,10 +59,10 @@ export default function Chat({ onClose }: { onClose?: () => void }) {
         { label: 'High earners', query: 'Who earns more than 15000 AED?', role: 'HR', category: 'query', icon: '💎' },
         { label: 'Senior staff', query: 'Show employees with grade 12 and above', role: 'HR', category: 'query', icon: '⭐' },
         { label: 'Salary report', query: 'What is the average salary by department?', role: 'HR', category: 'query', icon: '📊' },
-        { label: 'Loan eligibility check', query: 'Check loan eligibility for John Doe', role: 'HR', category: 'query', icon: '🔍' },
-        { label: 'New employee', query: 'Help me create a new employee record', role: 'HR', category: 'action', icon: '➕' },
-        { label: 'Promote employee', query: 'Promote John Doe to Grade 12', role: 'HR', category: 'action', icon: '⭐' },
-        { label: 'Salary certificate', query: 'Generate a salary certificate for John Doe', role: 'HR', category: 'document', icon: '📄' },
+        { label: 'Loan eligibility check', query: 'Check loan eligibility for employee', role: 'HR', category: 'query', icon: '🔍' },
+        { label: 'New employee', query: 'Create a new employee record', role: 'HR', category: 'action', icon: '➕' },
+        { label: 'Promote employee', query: 'Promote employee', role: 'HR', category: 'action', icon: '⭐' },
+        { label: 'Salary certificate', query: 'Generate a salary certificate', role: 'HR', category: 'document', icon: '📄' },
         ], []);
 
   // Filter chips by role and category

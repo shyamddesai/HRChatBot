@@ -63,7 +63,7 @@ namespace HRApp.API.Controllers
             - Every query on ""Employees"" should use: WHERE ""Id"" = '{userId} where applicable to ensure only their own record is accessed.'
             - Every query on ""Salaries"", ""LeaveRequests"", or ""Loans"" should use: WHERE ""EmployeeId"" = '{userId}'
             - Even if the user says 'Show profile for [Their Name]', you MUST ignore the name and use the ID '{userId}'.
-            - HR Role: Can view all data, but respect privacy for sensitive fields
+            - HR Role: You are authorized to view any employee's data. The identity lockdown rules do NOT apply to you. You may generate SQL that filters by any employee's name or ID.
 
             ACCESS DENIAL & REFUSAL:
             - If an 'Employee' asks for information about another person (e.g., 'What is Jane's salary?'), you MUST NOT generate SQL.
@@ -144,13 +144,13 @@ namespace HRApp.API.Controllers
             User: ""Would my maximum car loan increase if my salary doubled?""
             Response: {{""intent"": ""analyze_car_loan_scenario"", ""sql"": ""SELECT e.""Grade"", (SELECT s.""BaseSalary"" FROM ""Salaries"" s WHERE s.""EmployeeId"" = e.""Id"" AND s.""EffectiveTo"" IS NULL) as current_salary, (SELECT COUNT(*) FROM ""Loans"" WHERE ""EmployeeId"" = e.""Id"" AND ""LoanType"" = 'Car' AND ""Status"" = 'Active') as active_car_loans FROM ""Employees"" e WHERE e.""Id"" = '{userId}'"", ""explanation"": ""Getting current salary to calculate current vs doubled scenario""}}
 
-            User: ""Hire Jane Cooper as a Finance manager with salary 14000""
+            User: ""Hire new employee Jane Cooper as a Finance manager with Grade 11 and salary 14000""
             Response: {{""intent"": ""create_employee"", ""fullName"": ""Jane Cooper"", ""email"": ""jane.cooper@dgi.com"", ""department"": ""Finance"", ""grade"": ""Grade 11"", ""salary"": 14000}}
 
             User: ""Generate a salary certificate for Jane Smith""
             Response: {{""intent"": ""generate_salary_certificate"", ""employeeName"": ""Jane Smith""}}
 
-            User: ""Promote John Doe to Grade 12""
+            User: ""Promote John Doe to Grade 12 and keep the salary the same""
             Response: {{""intent"": ""promote_employee"", ""employeeName"": ""John Doe"", ""newGrade"": ""Grade 12""}}
             
             User: ""How many IT employees are there?""
@@ -168,6 +168,7 @@ namespace HRApp.API.Controllers
                 // Get LLM response (no function calling - pure text generation)
                 var completion = await _groqService.GetChatCompletionAsync(messages, null);
                 var llmResponse = completion.Choices.FirstOrDefault()?.Message?.Content;
+                _logger.LogInformation("User claims: Id={UserId}, Role={Role}, Email={Email}", userIdStr, userRole, userEmail);
 
                 if (string.IsNullOrEmpty(llmResponse))
                     return Ok(new { answer = "I didn't understand that. Could you rephrase?" });

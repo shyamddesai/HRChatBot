@@ -11,6 +11,8 @@ namespace HRApp.Infrastructure.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.Sql("CREATE EXTENSION IF NOT EXISTS vector;");
+            
             migrationBuilder.AlterColumn<Vector>(
                 name: "Embedding",
                 table: "Documents",
