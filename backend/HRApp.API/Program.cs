@@ -7,6 +7,9 @@ using HRApp.Infrastructure.Data;
 using HRApp.Infrastructure.Seed;
 using QuestPDF.Infrastructure;
 using HRApp.API.Services;
+using Serilog;
+using Serilog.Events;
+using Serilog.Filters;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -50,6 +53,29 @@ builder.Services.AddSwaggerGen(c =>
         }
     });
 });
+
+var logDirectory = Path.Combine(Directory.GetCurrentDirectory(), "logs");
+Directory.CreateDirectory(logDirectory);
+
+Log.Logger = new LoggerConfiguration()
+    .MinimumLevel.Information()
+    .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
+    .WriteTo.Console()
+    .WriteTo.File(Path.Combine(logDirectory, "all-.txt"),
+        rollingInterval: RollingInterval.Day,
+        outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level}] {Message}{NewLine}{Exception}",
+        restrictedToMinimumLevel: LogEventLevel.Warning)
+    .WriteTo.Logger(lc => lc
+        .Filter.ByIncludingOnly(Matching.FromSource("HRApp.API.Controllers.ChatController"))
+        .WriteTo.File(Path.Combine(logDirectory, "sql-audit-.txt"),
+            rollingInterval: RollingInterval.Day,
+            outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level}] {Message}{NewLine}{Exception}")
+    )
+    .CreateLogger();
+
+builder.Host.UseSerilog();
+
+Log.Information("Test log from Program.cs");
 
 // Register DbContext
 builder.Services.AddDbContext<AppDbContext>(options =>

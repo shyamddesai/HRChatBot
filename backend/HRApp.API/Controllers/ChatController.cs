@@ -172,7 +172,7 @@ namespace HRApp.API.Controllers
                 if (string.IsNullOrEmpty(llmResponse))
                     return Ok(new { answer = "I didn't understand that. Could you rephrase?" });
 
-                _logger.LogInformation("LLM Raw Response: {Response}", llmResponse);
+                // _logger.LogInformation("LLM Raw Response: {Response}", llmResponse);
 
                 // Parse the JSON response from LLM
                 var (intent, sql, explanation, conversationResponse, parameters) = ParseLlmResponse(llmResponse);
@@ -304,7 +304,7 @@ namespace HRApp.API.Controllers
                     // Apply row-level security for non-HR users
                     sql = ApplyRowLevelSecurity(sql, userRole!, userId);
 
-                    var (results, columns) = await ExecuteDynamicSqlAsync(sql);
+                    var (results, columns) = await ExecuteDynamicSqlAsync(sql, userId);
                     var formattedAnswer = await FormatResultsWithLlmAsync(request.Message, results, columns, explanation);
                     
                     return Ok(new 
@@ -503,7 +503,7 @@ namespace HRApp.API.Controllers
                 )";
         }
 
-        private async Task<(List<Dictionary<string, object>> Results, List<string> Columns)> ExecuteDynamicSqlAsync(string sql)
+        private async Task<(List<Dictionary<string, object>> Results, List<string> Columns)> ExecuteDynamicSqlAsync(string sql,Guid userId)
         {
             var results = new List<Dictionary<string, object>>();
             var columns = new List<string>();
@@ -511,7 +511,18 @@ namespace HRApp.API.Controllers
             try
             {
                 string trimmedSql = sql.Trim().TrimEnd(';');
-                _logger.LogInformation("Executing SQL: {Sql}", trimmedSql);
+                using (_logger.BeginScope(new               Dictionary<string, object>
+                {
+                    ["IsSqlAudit"] = true,
+                    ["UserId"] = userId
+                }))
+                {
+                    _logger.LogInformation(
+                        "User {UserId} executed SQL: {Sql} | Rows: {Count}",
+                        userId,
+                        trimmedSql,
+                        results.Count);
+                }
 
                 // Use EF Core's raw SQL execution with Dapper-like safety
                 // We use a read-only approach with parameterized safety checks already done
@@ -547,7 +558,7 @@ namespace HRApp.API.Controllers
 
                 await connection.CloseAsync();
                 
-                _logger.LogInformation("Executed SQL: {Sql} | Rows: {Count}", trimmedSql, results.Count);
+                // _logger.LogInformation("Executed SQL: {Sql} | Rows: {Count}", trimmedSql, results.Count);
                 
                 return (results, columns);
             }
@@ -690,7 +701,7 @@ namespace HRApp.API.Controllers
 
         private async Task<string> FormatResultsWithLlmAsync(string originalQuestion, List<Dictionary<string, object>> results, List<string> columns, string? explanation)
         {
-            Console.WriteLine($"[DEBUG] FormatResultsWithLlmAsync called with {results?.Count ?? 0} results");
+            // Console.WriteLine($"[DEBUG] FormatResultsWithLlmAsync called with {results?.Count ?? 0} results");
 
             if (results == null || results.Count == 0)
                 return "I found no matching records for your query.";
@@ -700,7 +711,7 @@ namespace HRApp.API.Controllers
             var isLoanQuery = lowerQ.Contains("loan") || lowerQ.Contains("eligible") || lowerQ.Contains("qualify");
             var isHypothetical = lowerQ.Contains("if") || lowerQ.Contains("would") || lowerQ.Contains("doubled") || lowerQ.Contains("increase");
 
-            _logger.LogInformation("isLoanQuery: {IsLoan}, isHypothetical: {IsHypo}", isLoanQuery, isHypothetical);
+            // _logger.LogInformation("isLoanQuery: {IsLoan}, isHypothetical: {IsHypo}", isLoanQuery, isHypothetical);
 
             var dataJson = JsonSerializer.Serialize(new { 
                 rowCount = results.Count, 
@@ -710,7 +721,7 @@ namespace HRApp.API.Controllers
                 PropertyNamingPolicy = JsonNamingPolicy.CamelCase
             });
 
-            _logger.LogInformation("Data JSON length: {Length}", dataJson.Length);
+            // _logger.LogInformation("Data JSON length: {Length}", dataJson.Length);
             
             string prompt;
             
@@ -770,12 +781,12 @@ namespace HRApp.API.Controllers
                     new GroqMessage { Role = "user", Content = prompt }
                 };
 
-                Console.WriteLine("[DEBUG] Calling Groq service...");
+                // Console.WriteLine("[DEBUG] Calling Groq service...");
 
                 var completion = await _groqService.GetChatCompletionAsync(messages, null);
                 var response = completion.Choices.FirstOrDefault()?.Message?.Content?.Trim();
                 
-                _logger.LogInformation("FormatResultsWithLlmAsync LLM response: {Response}", response ?? "(null)");
+                // _logger.LogInformation("FormatResultsWithLlmAsync LLM response: {Response}", response ?? "(null)");
 
                 if (!string.IsNullOrWhiteSpace(response))
                     return response;

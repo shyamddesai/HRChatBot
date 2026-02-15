@@ -352,7 +352,7 @@ export default function Dashboard() {
   const hrStats = [
     { label: 'Total Active', value: activeCount, icon: Users, color: 'bg-blue-500' },
     { label: 'Departments', value: departments.length, icon: Building2, color: 'bg-purple-500' },
-    { label: 'Active Loans', value: activeLoans ?? 0, icon: CreditCard, color: 'bg-yellow-500' },
+    // { label: 'Active Loans', value: activeLoans ?? 0, icon: CreditCard, color: 'bg-yellow-500' },
   ];
 
   // Stats for Employee view

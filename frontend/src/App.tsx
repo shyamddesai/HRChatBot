@@ -11,16 +11,29 @@ const queryClient = new QueryClient();
 // Protected route component
 const ProtectedRoute = ({ children }: { children: JSX.Element }) => {
   const token = localStorage.getItem('token');
+
   if (!token) {
     return <Navigate to="/" replace />;
   }
+
+  // Check token expiration
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    if (payload.exp * 1000 < Date.now()) {
+      // Token expired, clear storage and redirect
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      return <Navigate to="/" replace />;
+    }
+  } catch {
+    // Malformed token – treat as invalid
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    return <Navigate to="/" replace />;
+  }
+
   return children;
 };
-
-// Verify authentication on page load
-useEffect(() => {
-  api.get('/employees/me').catch(() => {});
-}, []);
 
 function App() {
   return (
