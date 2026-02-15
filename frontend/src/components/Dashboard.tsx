@@ -364,7 +364,7 @@ export default function Dashboard() {
         <header className="bg-white dark:bg-gray-800 shadow-sm sticky top-0 z-10">
           <div className="px-6 py-4 flex justify-between items-center">
             <div>
-              <h1 className="text-2xl font-bold text-gray-800 dark:text-white">HR Dashboard</h1>
+              <h1 className="text-2xl font-bold text-gray-800 dark:text-white">Desai Global Industries</h1>
               <p className="text-sm text-gray-500 dark:text-gray-400">
                 Welcome back, {user?.fullName} {isHR && <span className="text-blue-500 font-medium">(HR Admin)</span>}
               </p>

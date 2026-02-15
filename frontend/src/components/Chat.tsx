@@ -36,27 +36,29 @@ export default function Chat({ onClose }: { onClose?: () => void }) {
     scrollRef.current?.scrollTo(0, scrollRef.current.scrollHeight);
   }, [messages, isLoading]);
 
-   const suggestionChips: SuggestionChip[] = useMemo(() => [
-    // Universal queries (all roles)
-    { label: 'My profile', query: 'Show my profile information', role: 'all', category: 'query', icon: '👤' },
-    { label: 'My salary', query: 'What is my current salary?', role: 'all', category: 'query', icon: '💰' },
-    { label: 'Leave balance', query: 'What is my remaining leave balance?', role: 'all', category: 'query', icon: '🏖️' },
-    
-    // Employee-specific
-    { label: 'Request leave', query: 'I want to request annual leave starting next Monday for 5 days', role: 'Employee', category: 'action', icon: '📅' },
-    { label: 'My department', query: 'Who is in my department?', role: 'Employee', category: 'query', icon: '🏢' },
-    { label: 'Loan eligibility', query: 'Am I eligible for a car loan?', role: 'Employee', category: 'query', icon: '🚗' },
-    { label: 'Download payslip', query: 'Generate my payslip for this month', role: 'Employee', category: 'document', icon: '📄' },
-    
-    // HR-specific
-    { label: 'All employees', query: 'List all active employees', role: 'HR', category: 'query', icon: '👥' },
-    { label: 'IT department', query: 'Show all employees in IT department', role: 'HR', category: 'query', icon: '💻' },
-    { label: 'High earners', query: 'Who earns more than 15000 AED?', role: 'HR', category: 'query', icon: '💎' },
-    { label: 'Senior staff', query: 'Show employees with grade 12 and above', role: 'HR', category: 'query', icon: '⭐' },
-    { label: 'Pending leaves', query: 'List all pending leave requests', role: 'HR', category: 'query', icon: '⏳' },
-    { label: 'Salary report', query: 'What is the average salary by department?', role: 'HR', category: 'query', icon: '📊' },
-    { label: 'New hire', query: 'Help me create a new employee record', role: 'HR', category: 'action', icon: '➕' },
-  ], []);
+    const suggestionChips: SuggestionChip[] = useMemo(() => [
+        // Universal queries (all roles)
+        { label: 'My profile', query: 'Show my profile information', role: 'all', category: 'query', icon: '👤' },
+        { label: 'My salary', query: 'What is my current salary?', role: 'all', category: 'query', icon: '💰' },
+        { label: 'Salary history', query: 'Show my salary history', role: 'all', category: 'query', icon: '📊' },
+
+        // Employee-specific
+        { label: 'My department', query: 'Who is in my department?', role: 'Employee', category: 'query', icon: '🏢' },
+        { label: 'Car loan eligibility', query: 'Am I eligible for a car loan?', role: 'Employee', category: 'query', icon: '🚗' },
+        { label: 'Housing loan', query: 'Can I apply for a housing loan?', role: 'Employee', category: 'query', icon: '🏠' },
+        { label: 'Promotion criteria', query: 'What are the requirements for promotion to Grade 12?', role: 'Employee', category: 'query', icon: '📈' },
+        { label: 'Salary certificate', query: 'How can I get my salary certificate?', role: 'Employee', category: 'document', icon: '📄' },
+
+        // HR-specific
+        { label: 'All employees', query: 'List all active employees', role: 'HR', category: 'query', icon: '👥' },
+        { label: 'IT department', query: 'Show all employees in IT department', role: 'HR', category: 'query', icon: '💻' },
+        { label: 'High earners', query: 'Who earns more than 15000 AED?', role: 'HR', category: 'query', icon: '💎' },
+        { label: 'Senior staff', query: 'Show employees with grade 12 and above', role: 'HR', category: 'query', icon: '⭐' },
+        { label: 'Salary report', query: 'What is the average salary by department?', role: 'HR', category: 'query', icon: '📊' },
+        { label: 'New hire', query: 'Help me create a new employee record', role: 'HR', category: 'action', icon: '➕' },
+        { label: 'Promote employee', query: 'Promote John Doe to Grade 12', role: 'HR', category: 'action', icon: '⭐' },
+        { label: 'Generate report', query: 'Generate a salary certificate for John Doe', role: 'HR', category: 'document', icon: '📄' },
+        ], []);
 
   // Filter chips by role and category
   const filteredChips = useMemo(() => {
