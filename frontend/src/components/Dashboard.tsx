@@ -1,6 +1,9 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { Bot, Users, Calendar, Clock, UserPlus, LogOut, Shield, Database } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { 
+  Bot, Users, LogOut, Plus, RefreshCcw, AlertCircle, X, CheckCircle, 
+  UserPlus, MoreHorizontal, UserX, Search, Filter
+} from 'lucide-react';
 import api from '../api';
 import Chat from './Chat';
 
@@ -11,15 +14,8 @@ interface Employee {
   department: string;
   grade: string;
   status: string;
-}
-
-interface LeaveRequest {
-  id: string;
-  employeeName: string;
-  startDate: string;
-  endDate: string;
-  type: string;
-  status: string;
+  employeeCode: string;
+  hireDate: string;
 }
 
 interface UserInfo {
@@ -29,10 +25,27 @@ interface UserInfo {
 
 export default function Dashboard() {
   const [isChatOpen, setIsChatOpen] = useState(false);
-  
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showDeactivateModal, setShowDeactivateModal] = useState(false);
+  const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
+  const [showActionsMenu, setShowActionsMenu] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [includeInactive, setIncludeInactive] = useState(false);
+  const queryClient = useQueryClient();
+
   const userStr = localStorage.getItem('user');
   const user: UserInfo | null = userStr ? JSON.parse(userStr) : null;
   const isHR = user?.role === 'HR';
+
+  // Form state for new employee
+  const [formData, setFormData] = useState({
+    fullName: '',
+    email: '',
+    department: '',
+    grade: 'Grade 5',
+    baseSalary: '',
+    role: 'Employee'
+  });
 
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -41,12 +54,13 @@ export default function Dashboard() {
   };
 
   const { data: employees, isLoading: employeesLoading } = useQuery({
-    queryKey: ['employees'],
+    queryKey: ['employees', includeInactive],
     queryFn: async () => {
-      const res = await api.get('/employees');
+      const endpoint = includeInactive ? '/employees/all' : '/employees';
+      const res = await api.get(endpoint);
       return res.data as Employee[];
     },
-    enabled: isHR // Only fetch all employees if HR
+    enabled: isHR
   });
 
   const { data: myProfile } = useQuery({
@@ -57,50 +71,86 @@ export default function Dashboard() {
     }
   });
 
-  const { data: leaves } = useQuery({
-    queryKey: ['leaves'],
-    queryFn: async () => {
-      const res = await api.get('/leaves?status=Pending');
-      return res.data as LeaveRequest[];
+  // Create employee mutation
+  const createMutation = useMutation({
+    mutationFn: async (data: typeof formData) => {
+      const res = await api.post('/employees', {
+        ...data,
+        baseSalary: parseFloat(data.baseSalary) || 0
+      });
+      return res.data;
     },
-    enabled: isHR
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['employees'] });
+      setShowCreateModal(false);
+      setFormData({ fullName: '', email: '', department: '', grade: 'Grade 5', baseSalary: '', role: 'Employee' });
+    }
   });
 
-  const stats = [
-    { 
-      label: 'Total Employees', 
-      value: employees?.length ?? 0, 
-      icon: Users, 
-      color: 'bg-blue-500',
-      visible: isHR 
+  // Deactivate mutation
+  const deactivateMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await api.post(`/employees/${id}/archive`, {});
+      return res.data;
     },
-    { 
-      label: 'Pending Leaves', 
-      value: leaves?.length ?? 0, 
-      icon: Calendar, 
-      color: 'bg-yellow-500',
-      visible: isHR 
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['employees'] });
+      setShowDeactivateModal(false);
+      setSelectedEmployee(null);
+      setShowActionsMenu(null);
+    }
+  });
+
+  // Restore mutation
+  const restoreMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await api.post(`/employees/${id}/restore`, {});
+      return res.data;
     },
-    { 
-      label: 'My Department', 
-      value: myProfile?.department ?? '-', 
-      icon: Database, 
-      color: 'bg-green-500',
-      visible: !isHR 
-    },
-    { 
-      label: 'My Grade', 
-      value: myProfile?.grade ?? '-', 
-      icon: Shield, 
-      color: 'bg-purple-500',
-      visible: !isHR 
-    },
-  ].filter(s => s.visible);
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['employees'] });
+    }
+  });
+
+  const handleCreateSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    createMutation.mutate(formData);
+  };
+
+  const handleDeactivate = () => {
+    if (selectedEmployee) {
+      deactivateMutation.mutate(selectedEmployee.id);
+    }
+  };
+
+  const filteredEmployees = employees?.filter(emp => 
+    emp.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    emp.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    emp.department.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    emp.employeeCode.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const activeCount = employees?.filter(e => e.status === 'Active').length ?? 0;
+  const inactiveCount = employees?.filter(e => e.status !== 'Active').length ?? 0;
+
+  // Stats for HR view
+  const hrStats = [
+    { label: 'Total Active', value: activeCount, icon: Users, color: 'bg-blue-500' },
+    { label: 'Departments', value: new Set(employees?.map(e => e.department)).size ?? 0, icon: Filter, color: 'bg-purple-500' },
+  ];
+
+  // Stats for Employee view
+  const employeeStats = [
+    { label: 'My Department', value: myProfile?.department ?? '-', icon: Users, color: 'bg-green-500' },
+    { label: 'My Grade', value: myProfile?.grade ?? '-', icon: RefreshCcw, color: 'bg-purple-500' },
+  ];
+
+  const stats = isHR ? hrStats : employeeStats;
 
   return (
     <div className="flex h-screen relative overflow-hidden bg-gray-50 dark:bg-gray-900">
-      {/* Main Content Area */}
-      <div className={`flex-1 transition-all duration-300 ${isChatOpen ? 'pr-[350px]' : ''} overflow-y-auto`}>
+      {/* Main Content */}
+      <div className={`flex-1 transition-all duration-300 ${isChatOpen ? 'pr-[400px]' : ''} overflow-y-auto`}>
         {/* Header */}
         <header className="bg-white dark:bg-gray-800 shadow-sm sticky top-0 z-10">
           <div className="px-6 py-4 flex justify-between items-center">
@@ -120,7 +170,7 @@ export default function Dashboard() {
         </header>
 
         <main className="p-6">
-          {/* Stats Cards */}
+          {/* Stats */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             {stats.map((stat, idx) => (
               <div key={idx} className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 flex items-center">
@@ -135,58 +185,159 @@ export default function Dashboard() {
             ))}
           </div>
 
-          {/* Quick Actions for HR */}
+          {/* Quick Actions */}
           {isHR && (
             <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-8">
-              <h3 className="text-sm font-semibold text-blue-900 dark:text-blue-300 mb-2">Quick Actions</h3>
-              <div className="flex gap-3">
-                <button className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition">
-                  + New Employee
-                </button>
-                <button className="px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-sm rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition">
-                  Generate Report
-                </button>
-                <button className="px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-sm rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition">
-                  Approve Leaves
+              <h3 className="text-sm font-semibold text-blue-900 dark:text-blue-300 mb-3">Quick Actions</h3>
+              <div className="flex flex-wrap gap-3">
+                <button 
+                  onClick={() => setShowCreateModal(true)}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition"
+                >
+                  <Plus size={16} />
+                  New Employee
                 </button>
               </div>
             </div>
           )}
 
-          {/* Employee Table - HR Only */}
+          {/* Employee Table */}
           {isHR && (
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow mb-8">
-              <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
-                <h2 className="text-lg font-semibold text-gray-800 dark:text-white">All Employees</h2>
-                <span className="text-sm text-gray-500">{employees?.length ?? 0} total</span>
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
+              <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                  <div>
+                    <h2 className="text-lg font-semibold text-gray-800 dark:text-white">Employees</h2>
+                    <p className="text-sm text-gray-500">
+                      {activeCount} active
+                      {includeInactive && inactiveCount > 0 && `, ${inactiveCount} inactive`}
+                      {' '}({filteredEmployees?.length ?? 0} shown)
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    {/* Include Inactive Checkbox */}
+                    <label className="flex items-center gap-2 cursor-pointer select-none">
+                      <div className="relative">
+                        <input
+                          type="checkbox"
+                          checked={includeInactive}
+                          onChange={(e) => setIncludeInactive(e.target.checked)}
+                          className="sr-only peer"
+                        />
+                        <div className="w-5 h-5 border-2 border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 peer-checked:bg-blue-600 peer-checked:border-blue-600 transition-all"></div>
+                        <div className="absolute inset-0 flex items-center justify-center text-white opacity-0 peer-checked:opacity-100 transition-opacity">
+                          <CheckCircle size={12} />
+                        </div>
+                      </div>
+                      <span className="text-sm text-gray-700 dark:text-gray-300">Include inactive</span>
+                    </label>
+                    
+                    {/* Search */}
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+                      <input
+                        type="text"
+                        placeholder="Search employees..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white w-full sm:w-64"
+                      />
+                    </div>
+                  </div>
+                </div>
               </div>
+
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                   <thead className="bg-gray-50 dark:bg-gray-700">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Name</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Employee</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Department</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Grade</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Status</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase"></th>
                     </tr>
                   </thead>
                   <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                     {employeesLoading ? (
-                      <tr><td colSpan={4} className="px-6 py-4 text-center text-gray-500">Loading...</td></tr>
-                    ) : employees?.map((emp) => (
-                      <tr key={emp.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                      <tr><td colSpan={5} className="px-6 py-8 text-center text-gray-500">
+                        <div className="flex justify-center"><RefreshCcw className="animate-spin" /></div>
+                      </td></tr>
+                    ) : filteredEmployees?.length === 0 ? (
+                      <tr><td colSpan={5} className="px-6 py-8 text-center text-gray-500">
+                        {searchQuery ? 'No employees match your search' : 'No employees found'}
+                      </td></tr>
+                    ) : filteredEmployees?.map((emp) => (
+                      <tr key={emp.id} className={`hover:bg-gray-50 dark:hover:bg-gray-700/50 ${emp.status !== 'Active' ? 'opacity-60' : ''}`}>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900 dark:text-white">{emp.fullName}</div>
-                          <div className="text-sm text-gray-500 dark:text-gray-400">{emp.email}</div>
+                          <div className="flex items-center">
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-medium mr-3 ${
+                              emp.status === 'Active' 
+                                ? 'bg-gradient-to-br from-blue-400 to-blue-600' 
+                                : 'bg-gradient-to-br from-gray-400 to-gray-600'
+                            }`}>
+                              {emp.fullName.charAt(0)}
+                            </div>
+                            <div>
+                              <div className="text-sm font-medium text-gray-900 dark:text-white">{emp.fullName}</div>
+                              <div className="text-xs text-gray-500 dark:text-gray-400">{emp.email}</div>
+                            </div>
+                          </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{emp.department}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{emp.grade}</td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                            emp.status === 'Active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                          <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                            emp.status === 'Active' 
+                              ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' 
+                              : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-400'
                           }`}>
-                            {emp.status}
+                            {emp.status === 'Active' ? 'Active' : 'Inactive'}
                           </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium relative">
+                          <button
+                            onClick={() => setShowActionsMenu(showActionsMenu === emp.id ? null : emp.id)}
+                            className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
+                          >
+                            <MoreHorizontal size={18} />
+                          </button>
+                          
+                          {/* Actions Dropdown */}
+                          {showActionsMenu === emp.id && (
+                            <>
+                              <div 
+                                className="fixed inset-0 z-10" 
+                                onClick={() => setShowActionsMenu(null)}
+                              />
+                              <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-20 py-1">
+                                {emp.status === 'Active' ? (
+                                  <button
+                                    onClick={() => {
+                                      setSelectedEmployee(emp);
+                                      setShowDeactivateModal(true);
+                                      setShowActionsMenu(null);
+                                    }}
+                                    className="w-full px-4 py-2 text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2"
+                                  >
+                                    <UserX size={16} />
+                                    Deactivate
+                                  </button>
+                                ) : (
+                                  <button
+                                    onClick={() => {
+                                      restoreMutation.mutate(emp.id);
+                                      setShowActionsMenu(null);
+                                    }}
+                                    className="w-full px-4 py-2 text-left text-sm text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 flex items-center gap-2"
+                                  >
+                                    <RefreshCcw size={16} />
+                                    Reactivate
+                                  </button>
+                                )}
+                              </div>
+                            </>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -198,26 +349,26 @@ export default function Dashboard() {
 
           {/* My Profile - Employee View */}
           {!isHR && myProfile && (
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow mb-8">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
               <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
                 <h2 className="text-lg font-semibold text-gray-800 dark:text-white">My Profile</h2>
               </div>
-              <div className="p-6 grid grid-cols-2 gap-4">
+              <div className="p-6 grid grid-cols-2 gap-6">
                 <div>
-                  <label className="text-xs text-gray-500 uppercase">Full Name</label>
-                  <p className="text-sm font-medium text-gray-900 dark:text-white">{myProfile.fullName}</p>
+                  <label className="text-xs text-gray-500 uppercase tracking-wide">Full Name</label>
+                  <p className="text-sm font-medium text-gray-900 dark:text-white mt-1">{myProfile.fullName}</p>
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 uppercase">Email</label>
-                  <p className="text-sm font-medium text-gray-900 dark:text-white">{myProfile.email}</p>
+                  <label className="text-xs text-gray-500 uppercase tracking-wide">Email</label>
+                  <p className="text-sm font-medium text-gray-900 dark:text-white mt-1">{myProfile.email}</p>
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 uppercase">Department</label>
-                  <p className="text-sm font-medium text-gray-900 dark:text-white">{myProfile.department}</p>
+                  <label className="text-xs text-gray-500 uppercase tracking-wide">Department</label>
+                  <p className="text-sm font-medium text-gray-900 dark:text-white mt-1">{myProfile.department}</p>
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 uppercase">Grade</label>
-                  <p className="text-sm font-medium text-gray-900 dark:text-white">{myProfile.grade}</p>
+                  <label className="text-xs text-gray-500 uppercase tracking-wide">Grade</label>
+                  <p className="text-sm font-medium text-gray-900 dark:text-white mt-1">{myProfile.grade}</p>
                 </div>
               </div>
             </div>
@@ -235,14 +386,165 @@ export default function Dashboard() {
         </button>
       )}
 
-      {/* Sliding AI Chat Sidebar */}
-      <div
-        className={`fixed top-0 right-0 h-full w-[400px] transform transition-transform duration-300 ease-in-out z-50 ${
-          isChatOpen ? 'translate-x-0' : 'translate-x-full'
-        }`}
-      >
+      {/* Chat Sidebar */}
+      <div className={`fixed top-0 right-0 h-full w-[400px] transform transition-transform duration-300 ease-in-out z-50 ${
+        isChatOpen ? 'translate-x-0' : 'translate-x-full'
+      }`}>
         <Chat onClose={() => setIsChatOpen(false)} />
       </div>
+
+      {/* Create Employee Modal */}
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                <UserPlus size={20} className="text-blue-500" />
+                Create New Employee
+              </h3>
+              <button onClick={() => setShowCreateModal(false)} className="text-gray-400 hover:text-gray-600">
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateSubmit} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Full Name *</label>
+                <input
+                  type="text"
+                  required
+                  value={formData.fullName}
+                  onChange={(e) => setFormData({...formData, fullName: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+                  placeholder="John Doe"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email *</label>
+                <input
+                  type="email"
+                  required
+                  value={formData.email}
+                  onChange={(e) => setFormData({...formData, email: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+                  placeholder="john.doe@company.com"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Department *</label>
+                <select
+                  required
+                  value={formData.department}
+                  onChange={(e) => setFormData({...formData, department: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+                >
+                  <option value="">Select Department</option>
+                  <option value="IT">IT</option>
+                  <option value="HR">HR</option>
+                  <option value="Finance">Finance</option>
+                  <option value="Sales">Sales</option>
+                  <option value="Marketing">Marketing</option>
+                  <option value="Operations">Operations</option>
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Grade</label>
+                  <select
+                    value={formData.grade}
+                    onChange={(e) => setFormData({...formData, grade: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+                  >
+                    {[...Array(15)].map((_, i) => (
+                      <option key={i} value={`Grade ${i + 1}`}>Grade {i + 1}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Role</label>
+                  <select
+                    value={formData.role}
+                    onChange={(e) => setFormData({...formData, role: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+                  >
+                    <option value="Employee">Employee</option>
+                    <option value="HR">HR</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Base Salary (AED)</label>
+                <input
+                  type="number"
+                  value={formData.baseSalary}
+                  onChange={(e) => setFormData({...formData, baseSalary: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+                  placeholder="10000"
+                />
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowCreateModal(false)}
+                  className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={createMutation.isPending}
+                  className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {createMutation.isPending ? <RefreshCcw className="animate-spin" size={16} /> : <CheckCircle size={16} />}
+                  {createMutation.isPending ? 'Creating...' : 'Create Employee'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Deactivate Confirmation Modal */}
+      {showDeactivateModal && selectedEmployee && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-sm w-full p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+                <AlertCircle className="text-red-600 dark:text-red-400" size={20} />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Deactivate Employee?</h3>
+            </div>
+
+            <p className="text-gray-600 dark:text-gray-400 mb-6">
+              Are you sure you want to deactivate <strong>{selectedEmployee.fullName}</strong>? 
+              They will no longer have access to the system, but their records will be preserved for compliance.
+            </p>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowDeactivateModal(false)}
+                className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeactivate}
+                disabled={deactivateMutation.isPending}
+                className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {deactivateMutation.isPending ? <RefreshCcw className="animate-spin" size={16} /> : <UserX size={16} />}
+                {deactivateMutation.isPending ? 'Deactivating...' : 'Deactivate'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
