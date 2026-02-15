@@ -5,10 +5,12 @@ import api from '../api';
 interface Message {
   role: 'user' | 'assistant';
   content: string;
-  type?: 'chat' | 'data' | 'error';
+  type?: 'chat' | 'data' | 'error' | 'certificate';
   sql?: string;
   rowCount?: number;
   data?: any[];
+  employeeId?: string;
+  employeeCode?: string;
 }
 
 interface SuggestionChip {
@@ -95,7 +97,9 @@ export default function Chat({ onClose }: { onClose?: () => void }) {
         type: res.data.type,
         sql: res.data.sql,
         rowCount: res.data.rowCount,
-        data: res.data.data
+        data: res.data.data,
+        employeeId: res.data.employeeId,
+        employeeCode: res.data.employeeCode
       };
       setMessages(prev => [...prev, botMsg]);
     } catch (err) {
@@ -220,8 +224,35 @@ export default function Chat({ onClose }: { onClose?: () => void }) {
                 
                 {msg.sql && <SqlToggle sql={msg.sql} />}
               </div>
+
+                {msg.type === 'certificate' && msg.employeeId && (
+                <div className="mt-3 border-t border-gray-700 pt-3">
+                    <button
+                    onClick={async () => {
+                        try {
+                        const response = await api.get(`/SalaryCertificate/${msg.employeeId}`, { responseType: 'blob' });
+                        const url = window.URL.createObjectURL(new Blob([response.data]));
+                        const link = document.createElement('a');
+                        link.href = url;
+                        link.setAttribute('download', `Salary_Certificate_${msg.employeeCode}.pdf`);
+                        document.body.appendChild(link);
+                        link.click();
+                        link.remove();
+                        window.URL.revokeObjectURL(url);
+                        } catch (error) {
+                        console.error('Download failed', error);
+                        alert('Failed to generate certificate. Please try again.');
+                        }
+                    }}
+                    className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition flex items-center justify-center gap-2"
+                    >
+                    <FileText size={16} />
+                    Download Salary Certificate
+                    </button>
+                </div>
+                )}
             </div>
-          </div>
+        </div>
         ))}
 
         {isLoading && (
