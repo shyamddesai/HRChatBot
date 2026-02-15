@@ -40,6 +40,7 @@ namespace HRApp.API.Controllers
             var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
             var userRole = User.FindFirstValue(ClaimTypes.Role);
             var userEmail = User.FindFirstValue(ClaimTypes.Email);
+            var fullName = User.FindFirstValue(ClaimTypes.Name);
 
             if (string.IsNullOrEmpty(userIdStr) || !Guid.TryParse(userIdStr, out Guid userId))
                 return Unauthorized();
@@ -48,13 +49,29 @@ namespace HRApp.API.Controllers
             var schemaInfo = GetDatabaseSchema();
             var systemPrompt = $@"You are an intelligent HR Database Assistant with direct SQL generation capabilities.
 
+            CURRENT CONTEXT:
+            - User Identity: {userEmail}
+            - User Role: {userRole}
+            - User ID: {userId}
+            - Name: {fullName}
+
             DATABASE SCHEMA:
             {schemaInfo}
 
-            SECURITY RULES:
-            - You are logged in as: {userEmail} (Role: {userRole})
-            - Employee Role: Can only view own data (WHERE id = '{userId}')
+            IDENTITY LOCKDOWN (MANDATORY):
+            - If Role is 'Employee', you are STRICTLY FORBIDDEN from generating SQL that filters by name, email, or any attribute other than the User ID: '{userId}'.
+            - Every query on ""Employees"" should use: WHERE ""Id"" = '{userId} where applicable to ensure only their own record is accessed.'
+            - Every query on ""Salaries"", ""LeaveRequests"", or ""Loans"" should use: WHERE ""EmployeeId"" = '{userId}'
+            - Even if the user says 'Show profile for [Their Name]', you MUST ignore the name and use the ID '{userId}'.
             - HR Role: Can view all data, but respect privacy for sensitive fields
+
+            ACCESS DENIAL & REFUSAL:
+            - If an 'Employee' asks for information about another person (e.g., 'What is Jane's salary?'), you MUST NOT generate SQL.
+            - You MUST respond: 
+                {{""intent"": ""conversation"", ""response"": ""I'm sorry, as an Employee you are only authorized to access your own personal HR records.""}}
+
+            INSTRUCTIONS:
+            - Respond with: {{""intent"": ""conversation"", ""response"": ""I'm sorry, you only have authorization to access your own personal HR records.""}} if an Employee tries to access data they shouldn't.
             - NEVER generate DELETE or DROP statements
             - NEVER expose passwords or internal IDs
             - For numeric grade comparisons, use the computed column ""GradeNumber"" (e.g., ""GradeNumber"" >= 10).
@@ -74,7 +91,7 @@ namespace HRApp.API.Controllers
             - Max loan amounts: Car ~5x salary, Housing ~10x salary
             - For hypotheticals (""what if salary was X"", ""how much do I need""), query current data and explain the calculation versus eligibility thresholds.
 
-            INSTRUCTIONS:
+            RESPONSE FORMAT:
             1. Analyze the user's question
             2. If it's a data query, generate a SAFE, read-only SQL query.
             3. If it's an action, return a JSON with the appropriate intent and required fields.
@@ -472,24 +489,18 @@ namespace HRApp.API.Controllers
         {
             if (userRole == "HR") return sql;
 
-            // For employees, inject WHERE clause to limit to own data
-            // This is a simplified approach - in production use proper parameterized queries
-            var employeeIdStr = userId.ToString();
+            string employeeIdStr = userId.ToString();
             
-            // Add employee_id filter if querying employees table
-            if (sql.Contains("employees", StringComparison.OrdinalIgnoreCase))
-            {
-                if (sql.Contains("WHERE", StringComparison.OrdinalIgnoreCase))
-                    sql = sql.Replace("WHERE", $"WHERE (id = '{employeeIdStr}') AND ", StringComparison.OrdinalIgnoreCase);
-                else if (sql.Contains("GROUP BY", StringComparison.OrdinalIgnoreCase))
-                    sql = sql.Replace("GROUP BY", $"WHERE id = '{employeeIdStr}' GROUP BY", StringComparison.OrdinalIgnoreCase);
-                else if (sql.Contains("ORDER BY", StringComparison.OrdinalIgnoreCase))
-                    sql = sql.Replace("ORDER BY", $"WHERE id = '{employeeIdStr}' ORDER BY", StringComparison.OrdinalIgnoreCase);
-                else
-                    sql += $" WHERE id = '{employeeIdStr}'";
-            }
-
-            return sql;
+            // Wrap the LLM's query to ensure the outer filter is always applied
+            return $@"
+                SELECT * FROM (
+                    {sql.TrimEnd(';')}
+                ) AS user_query 
+                WHERE (
+                    -- The subquery must contain one of these columns for the filter to work
+                    user_query.""Id"" = '{employeeIdStr}' OR 
+                    user_query.""EmployeeId"" = '{employeeIdStr}'
+                )";
         }
 
         private async Task<(List<Dictionary<string, object>> Results, List<string> Columns)> ExecuteDynamicSqlAsync(string sql)

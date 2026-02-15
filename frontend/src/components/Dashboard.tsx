@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { 
   Bot, Users, LogOut, Plus, RefreshCcw, AlertCircle, X, CheckCircle, 
   UserPlus, MoreHorizontal, UserX, Search, Filter, ArrowUpDown, 
-  Building2, Mail, Calendar, Briefcase, FileText, 
+  Building2, Mail, Calendar, Briefcase, FileText, CreditCard, 
   Edit3, UserCheck, ChevronDown, ChevronUp, TrendingUp, History
 } from 'lucide-react';
 import api from '../api';
@@ -334,17 +334,31 @@ export default function Dashboard() {
 
   const activeCount = employees?.filter(e => e.status === 'Active').length ?? 0;
   const inactiveCount = employees?.filter(e => e.status !== 'Active').length ?? 0;
+  const employeeSalary = myProfile?.salaries?.find((s: any) => !s.effectiveTo)?.baseSalary;
+
+  const { data: activeLoans } = useQuery({
+    queryKey: ['activeLoansCount'],
+    queryFn: async () => {
+      const res = await api.get('/loans?status=Active&count=true');
+      return res.data.count;
+    },
+    enabled: isHR
+  });
+
+  
 
   // Stats for HR view
   const hrStats = [
     { label: 'Total Active', value: activeCount, icon: Users, color: 'bg-blue-500' },
     { label: 'Departments', value: departments.length, icon: Building2, color: 'bg-purple-500' },
+    { label: 'Active Loans', value: activeLoans ?? 0, icon: CreditCard, color: 'bg-yellow-500' },
   ];
 
   // Stats for Employee view
   const employeeStats = [
     { label: 'My Department', value: myProfile?.department ?? '-', icon: Users, color: 'bg-green-500' },
     { label: 'My Grade', value: myProfile?.grade ?? '-', icon: Briefcase, color: 'bg-purple-500' },
+      { label: 'Salary', value: employeeSalary ? `AED ${employeeSalary.toLocaleString()}` : '-', icon: TrendingUp, color: 'bg-yellow-500' },
   ];
 
   const stats = isHR ? hrStats : employeeStats;

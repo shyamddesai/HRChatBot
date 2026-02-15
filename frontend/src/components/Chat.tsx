@@ -45,7 +45,7 @@ export default function Chat({ onClose }: { onClose?: () => void }) {
         { label: 'Salary history', query: 'Show my salary history', role: 'all', category: 'query', icon: '📊' },
 
         // Employee-specific
-        { label: 'My department', query: 'Who is in my department?', role: 'Employee', category: 'query', icon: '🏢' },
+        // { label: 'My department', query: 'Who is in my department?', role: 'Employee', category: 'query', icon: '🏢' },
         { label: 'Car loan eligibility', query: 'Am I eligible for a car loan?', role: 'Employee', category: 'query', icon: '🚗' },
         { label: 'Housing loan eligibility', query: 'Am I eligible for a housing loan?', role: 'Employee', category: 'query', icon: '🏠' },
         { label: 'Personal loan eligibility', query: 'Can I get a personal loan?', role: 'Employee', category: 'query', icon: '💰' },
