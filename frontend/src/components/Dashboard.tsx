@@ -4,7 +4,7 @@ import {
   Bot, Users, LogOut, Plus, RefreshCcw, AlertCircle, X, CheckCircle, 
   UserPlus, MoreHorizontal, UserX, Search, Filter, ArrowUpDown, 
   Building2, Mail, Calendar, Briefcase, 
-  Edit3, UserCheck, ChevronDown, ChevronUp
+  Edit3, UserCheck, ChevronDown, ChevronUp, TrendingUp, History
 } from 'lucide-react';
 import api from '../api';
 import Chat from './Chat';
@@ -53,6 +53,9 @@ export default function Dashboard() {
   const [sortField, setSortField] = useState<SortField>('fullName');
   const [sortOrder, setSortOrder] = useState<SortOrder>('asc');
   const [showFilters, setShowFilters] = useState(false);
+  const [showPromoteModal, setShowPromoteModal] = useState(false);
+  const [showSalaryHistoryModal, setShowSalaryHistoryModal] = useState(false);
+  const [salaryHistory, setSalaryHistory] = useState<any[]>([]);
   const queryClient = useQueryClient();
 
   const userStr = localStorage.getItem('user');
@@ -153,6 +156,22 @@ export default function Dashboard() {
       if (data.salaryUpdated) {
         alert('Employee updated successfully!');
       }
+    }
+  });
+
+  const promoteMutation = useMutation({
+    mutationFn: async ({ id, newGrade, newSalary }: { id: string; newGrade: string; newSalary?: number }) => {
+      const payload = {
+        newGrade,
+        newSalary: newSalary || 0
+      };
+      const res = await api.put(`/employees/${id}/promote`, payload);
+      return res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['employees'] });
+      setShowPromoteModal(false);
+      setSelectedEmployee(null);
     }
   });
 
@@ -606,6 +625,35 @@ export default function Dashboard() {
                                   <Edit3 size={16} />
                                   Edit Details
                                 </button>
+
+                                <button
+                                  onClick={() => {
+                                    setSelectedEmployee(emp);
+                                    setShowPromoteModal(true);
+                                    setShowActionsMenu(null);
+                                  }}
+                                  className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2"
+                                >
+                                  <TrendingUp size={16} />
+                                  Promote
+                                </button>
+                                <button
+                                  onClick={async () => {
+                                    setSelectedEmployee(emp);
+                                    try {
+                                      const res = await api.get(`/employees/${emp.id}`);
+                                      setSalaryHistory(res.data.salaries || []);
+                                      setShowSalaryHistoryModal(true);
+                                    } catch (error) {
+                                      console.error('Failed to fetch salary history', error);
+                                    }
+                                    setShowActionsMenu(null);
+                                  }}
+                                  className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2"
+                                >
+                                  <History size={16} />
+                                  Salary History
+                                </button>
                                 
                                 {emp.status === 'Active' ? (
                                   <button
@@ -1020,6 +1068,130 @@ export default function Dashboard() {
         </div>
       </div>
     )}
-    </div>
+
+    {/* Promote Modal */}
+    {showPromoteModal && selectedEmployee && (
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+              <TrendingUp className="text-blue-600 dark:text-blue-400" size={20} />
+            </div>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Promote Employee</h3>
+            <button onClick={() => setShowPromoteModal(false)} className="ml-auto text-gray-400 hover:text-gray-600">
+              <X size={20} />
+            </button>
+          </div>
+
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const formData = new FormData(e.currentTarget);
+              const newGrade = formData.get('newGrade') as string;
+              const newSalary = formData.get('newSalary') as string;
+              const salaryNum = newSalary ? parseFloat(newSalary) : undefined;
+              promoteMutation.mutate({ id: selectedEmployee.id, newGrade, newSalary: salaryNum });
+            }}
+            className="space-y-4"
+          >
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Current Grade</label>
+              <p className="px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg text-gray-900 dark:text-white">
+                {selectedEmployee.grade}
+              </p>
+            </div>
+
+            <div>
+              <label htmlFor="newGrade" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                New Grade *
+              </label>
+              <select
+                id="newGrade"
+                name="newGrade"
+                required
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+              >
+                <option value="">Select Grade</option>
+                {[...Array(15)].map((_, i) => (
+                  <option key={i} value={`Grade ${i + 1}`}>Grade {i + 1}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label htmlFor="newSalary" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                New Salary (AED) <span className="text-gray-500">(optional)</span>
+              </label>
+              <input
+                type="number"
+                id="newSalary"
+                name="newSalary"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                placeholder="Leave empty to keep current salary"
+              />
+            </div>
+
+            <div className="flex gap-3 pt-4">
+              <button
+                type="button"
+                onClick={() => setShowPromoteModal(false)}
+                className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={promoteMutation.isPending}
+                className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {promoteMutation.isPending ? <RefreshCcw className="animate-spin" size={16} /> : <CheckCircle size={16} />}
+                {promoteMutation.isPending ? 'Promoting...' : 'Confirm Promotion'}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    )}
+        
+    {/* Salary History Modal */}
+    {showSalaryHistoryModal && selectedEmployee && (
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full max-h-[80vh] overflow-y-auto">
+          <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center sticky top-0 bg-white dark:bg-gray-800">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+              <History size={20} className="text-blue-500" />
+              Salary History – {selectedEmployee.fullName}
+            </h3>
+            <button onClick={() => setShowSalaryHistoryModal(false)} className="text-gray-400 hover:text-gray-600">
+              <X size={20} />
+            </button>
+          </div>
+
+          <div className="p-6 space-y-4">
+            {salaryHistory.length === 0 ? (
+              <p className="text-center text-gray-500">No salary records found.</p>
+            ) : (
+              <div className="space-y-3">
+                {salaryHistory.map((sal: any) => (
+                  <div key={sal.id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                    <div className="flex justify-between items-center">
+                      <span className="text-lg font-semibold text-gray-900 dark:text-white">
+                        {sal.baseSalary.toLocaleString()} {sal.currency}
+                      </span>
+                      <span className="text-xs text-gray-500">
+                        {new Date(sal.effectiveFrom).toLocaleDateString()}
+                        {sal.effectiveTo && ` – ${new Date(sal.effectiveTo).toLocaleDateString()}`}
+                        {!sal.effectiveTo && <span className="ml-2 text-green-600">(current)</span>}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    )}
+  </div>
   );
 }
