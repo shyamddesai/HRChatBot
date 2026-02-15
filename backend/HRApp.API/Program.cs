@@ -13,6 +13,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddHttpClient<IGroqService, GroqService>();
+builder.Services.AddScoped<ILoanService, LoanService>();
 
 builder.Services.AddSwaggerGen(c =>
 {

@@ -18,6 +18,8 @@ namespace HRApp.Infrastructure.Data
         public DbSet<EmployeeSkill> EmployeeSkills { get; set; }
         public DbSet<LeaveSummary> LeaveSummaries { get; set; }
         public DbSet<Document> Documents { get; set; }
+        public DbSet<Loan> Loans { get; set; }
+
 
         // Enable vector support for pgvector
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
@@ -90,6 +92,11 @@ namespace HRApp.Infrastructure.Data
             modelBuilder.Entity<Document>()
                 .Property(d => d.Embedding)
                 .HasColumnType("vector(768)");
+            
+            modelBuilder.Entity<Loan>()
+                .HasOne(l => l.Employee)
+                .WithMany()
+                .HasForeignKey(l => l.EmployeeId);
         }
     }
 }

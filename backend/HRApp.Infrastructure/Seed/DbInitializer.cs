@@ -42,7 +42,7 @@ namespace HRApp.Infrastructure.Seed
                 Email = "admin@hr.com",
                 Role = "HR",
                 Grade = "Grade 15",
-                Department = "Human Resources",
+                Department = "HR",
                 HireDate = DateTime.UtcNow.AddYears(-2),
                 Status = "Active"
             };
@@ -95,6 +95,7 @@ namespace HRApp.Infrastructure.Seed
 
             // Seed Salaries
             context.Salaries.AddRange(
+                new Salary { EmployeeId = hrUser.Id, BaseSalary = 25000, Currency = "AED", EffectiveFrom = hrUser.HireDate },
                 new Salary { EmployeeId = emp1.Id, BaseSalary = 10000, Currency = "AED", EffectiveFrom = emp1.HireDate },
                 new Salary { EmployeeId = emp2.Id, BaseSalary = 12000, Currency = "AED", EffectiveFrom = emp2.HireDate }
             );
@@ -110,6 +111,21 @@ namespace HRApp.Infrastructure.Seed
                 Status = "Pending",
                 Reason = "Family vacation",
                 CreatedAt = DateTime.UtcNow
+            });
+            context.SaveChanges();
+
+            context.Loans.Add(new Loan
+            {
+                EmployeeId = emp2.Id, // Jane Smith has a car loan
+                LoanType = "Car",
+                Amount = 50000,
+                InterestRate = 0.04m,
+                TenureMonths = 48,
+                MonthlyDeduction = 1135,
+                Status = "Active",
+                StartDate = DateTime.UtcNow.AddMonths(-3),
+                WasEligible = true,
+                EligibilityReason = "Grade 11 meets minimum requirement (Grade 10+)"
             });
             context.SaveChanges();
         }
