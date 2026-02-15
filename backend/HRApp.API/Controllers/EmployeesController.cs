@@ -36,7 +36,9 @@ namespace HRApp.API.Controllers
                     e.Department,
                     e.Grade,
                     e.Status,
-                    e.HireDate
+                    e.HireDate,
+                    e.Role,
+                    ManagerName = e.Manager != null ? e.Manager.FullName : null
                 })
                 .ToListAsync();
 
@@ -58,7 +60,9 @@ namespace HRApp.API.Controllers
                     e.Department,
                     e.Grade,
                     e.Status,
-                    e.HireDate
+                    e.HireDate,
+                    e.Role,
+                    ManagerName = e.Manager != null ? e.Manager.FullName : null
                 })
                 .ToListAsync();
 
@@ -238,6 +242,76 @@ namespace HRApp.API.Controllers
             }
         }
 
+        public class UpdateEmployeeRequest
+        {
+            public string FullName { get; set; } = string.Empty;
+            public string Email { get; set; } = string.Empty;
+            public string Department { get; set; } = string.Empty;
+            public string Grade { get; set; } = string.Empty;
+            public decimal? NewSalary { get; set; }
+        }
+
+        [HttpPut("{id}")]
+        [Authorize(Roles = "HR")]
+        public async Task<IActionResult> UpdateEmployee(Guid id, [FromBody] UpdateEmployeeRequest request)
+        {
+            var employee = await _context.Employees.FindAsync(id);
+            if (employee == null)
+                return NotFound();
+
+            // Check if email is being changed and if it already exists
+            if (request.Email != employee.Email)
+            {
+                if (await _context.Employees.AnyAsync(e => e.Email == request.Email && e.Id != id))
+                    return BadRequest(new { message = "Another employee with this email already exists" });
+            }
+
+            employee.FullName = request.FullName;
+            employee.Email = request.Email;
+            employee.Department = request.Department;
+            employee.Grade = request.Grade;
+            
+            if (request.NewSalary.HasValue && request.NewSalary.Value > 0)
+            {
+                // Close current salary
+                var currentSalary = await _context.Salaries
+                    .FirstOrDefaultAsync(s => s.EmployeeId == id && s.EffectiveTo == null);
+                if (currentSalary != null)
+                {
+                    currentSalary.EffectiveTo = DateTime.UtcNow;
+                }
+
+                // Create new salary record
+                var newSalary = new Salary
+                {
+                    Id = Guid.NewGuid(),
+                    EmployeeId = id,
+                    BaseSalary = request.NewSalary.Value,
+                    Currency = "AED",
+                    EffectiveFrom = DateTime.UtcNow
+                };
+                _context.Salaries.Add(newSalary);
+            }
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new {
+                message = "Employee updated successfully",
+                salaryUpdated = request.NewSalary.HasValue,
+                employee = new {
+                    employee.Id,
+                    employee.EmployeeCode,
+                    employee.FullName,
+                    employee.Email,
+                    employee.Department,
+                    employee.Grade,
+                    employee.Role,
+                    employee.Status,
+                    employee.HireDate
+                }
+            });
+        }
+
         [HttpPut("{id}/promote")]
         [Authorize(Roles = "HR")]
         public async Task<IActionResult> PromoteEmployee(Guid id, [FromBody] PromoteRequest request)
@@ -307,9 +381,20 @@ namespace HRApp.API.Controllers
 
             employee.Status = "Active";
             employee.TerminationDate = null;
+            employee.HireDate = DateTime.UtcNow; // Update hire date to reactivation date
 
             await _context.SaveChangesAsync();
-            return Ok(new { message = "Employee restored successfully", employee });
+                return Ok(new { message = "Employee restored successfully", employee = new {
+                    employee.Id,
+                    employee.EmployeeCode,
+                    employee.FullName,
+                    employee.Email,
+                    employee.Department,
+                    employee.Grade,
+                    employee.Role,
+                    employee.Status,
+                    employee.HireDate
+            } });
         }
 
         public class ArchiveRequest
