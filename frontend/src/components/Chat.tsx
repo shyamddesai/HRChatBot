@@ -1,5 +1,5 @@
-import { useState, useRef, useEffect } from 'react';
-import { Send, Bot, X, Database, ChevronDown, ChevronUp, Table, FileText } from 'lucide-react';
+import { useState, useRef, useEffect, useMemo } from 'react';
+import { Send, Bot, X, Database, ChevronDown, ChevronUp, Table, FileText, Sparkles} from 'lucide-react';
 import api from '../api';
 
 interface Message {
@@ -11,16 +11,68 @@ interface Message {
   data?: any[];
 }
 
+interface SuggestionChip {
+  label: string;
+  query: string;
+  icon?: React.ReactNode;
+  role: 'all' | 'HR' | 'Employee';
+  category: 'query' | 'action' | 'document';
+}
+
 export default function Chat({ onClose }: { onClose?: () => void }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(true);
+  const [activeCategory, setActiveCategory] = useState<string>('all');
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Get user role from localStorage
+  const userStr = localStorage.getItem('user');
+  const user = userStr ? JSON.parse(userStr) : null;
+  const userRole = user?.role || 'Employee';
 
   useEffect(() => {
     scrollRef.current?.scrollTo(0, scrollRef.current.scrollHeight);
   }, [messages, isLoading]);
+
+   const suggestionChips: SuggestionChip[] = useMemo(() => [
+    // Universal queries (all roles)
+    { label: 'My profile', query: 'Show my profile information', role: 'all', category: 'query', icon: '👤' },
+    { label: 'My salary', query: 'What is my current salary?', role: 'all', category: 'query', icon: '💰' },
+    { label: 'Leave balance', query: 'What is my remaining leave balance?', role: 'all', category: 'query', icon: '🏖️' },
+    
+    // Employee-specific
+    { label: 'Request leave', query: 'I want to request annual leave starting next Monday for 5 days', role: 'Employee', category: 'action', icon: '📅' },
+    { label: 'My department', query: 'Who is in my department?', role: 'Employee', category: 'query', icon: '🏢' },
+    { label: 'Loan eligibility', query: 'Am I eligible for a car loan?', role: 'Employee', category: 'query', icon: '🚗' },
+    { label: 'Download payslip', query: 'Generate my payslip for this month', role: 'Employee', category: 'document', icon: '📄' },
+    
+    // HR-specific
+    { label: 'All employees', query: 'List all active employees', role: 'HR', category: 'query', icon: '👥' },
+    { label: 'IT department', query: 'Show all employees in IT department', role: 'HR', category: 'query', icon: '💻' },
+    { label: 'High earners', query: 'Who earns more than 15000 AED?', role: 'HR', category: 'query', icon: '💎' },
+    { label: 'Senior staff', query: 'Show employees with grade 12 and above', role: 'HR', category: 'query', icon: '⭐' },
+    { label: 'Pending leaves', query: 'List all pending leave requests', role: 'HR', category: 'query', icon: '⏳' },
+    { label: 'Salary report', query: 'What is the average salary by department?', role: 'HR', category: 'query', icon: '📊' },
+    { label: 'New hire', query: 'Help me create a new employee record', role: 'HR', category: 'action', icon: '➕' },
+  ], []);
+
+  // Filter chips by role and category
+  const filteredChips = useMemo(() => {
+    return suggestionChips.filter(chip => {
+      const roleMatch = chip.role === 'all' || chip.role === userRole;
+      const categoryMatch = activeCategory === 'all' || chip.category === activeCategory;
+      return roleMatch && categoryMatch;
+    });
+  }, [suggestionChips, userRole, activeCategory]);
+
+  const categories = [
+    { id: 'all', label: 'All', icon: <Sparkles size={14} /> },
+    { id: 'query', label: 'Queries', icon: <Database size={14} /> },
+    { id: 'action', label: 'Actions', icon: <Send size={14} /> },
+    { id: 'document', label: 'Documents', icon: <FileText size={14} /> },
+  ];
 
   const sendMessage = async (text: string = input) => {
     if (!text.trim() || isLoading) return;
@@ -56,13 +108,15 @@ export default function Chat({ onClose }: { onClose?: () => void }) {
     }
   };
 
-  const suggestions = [
-    "Show all employees in IT department",
-    "Who earns more than 10000 AED?",
-    "List employees with grade higher than 10",
-    "What is my leave balance?",
-    "How many people were hired this year?"
-  ];
+    const handleChipClick = (query: string) => {
+        sendMessage(query);
+    };
+
+    const resetChat = () => {
+        setMessages([]);
+        setShowSuggestions(true);
+        setInput('');
+    };
 
   return (
     <div className="flex flex-col h-full bg-[#161920] border-l border-gray-800 shadow-2xl">
@@ -77,31 +131,71 @@ export default function Chat({ onClose }: { onClose?: () => void }) {
             <span className="text-xs text-gray-500">Powered by Groq AI</span>
           </div>
         </div>
-        {onClose && (
-          <button onClick={onClose} className="text-gray-400 hover:text-white transition">
-            <X size={20} />
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {messages.length > 0 && (
+            <button 
+              onClick={resetChat}
+              className="text-xs text-gray-400 hover:text-white px-2 py-1 rounded hover:bg-gray-700 transition"
+            >
+              New Chat
+            </button>
+          )}
+          {onClose && (
+            <button onClick={onClose} className="text-gray-400 hover:text-white transition">
+              <X size={20} />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Messages area */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-hide">
         {messages.length === 0 && showSuggestions && (
-          <div className="space-y-3">
-            <div className="text-center text-gray-500 text-sm mb-4">
-              <p className="mb-2">👋 Welcome! I can help you query HR data using natural language.</p>
-              <p className="text-xs opacity-75">Try asking about employees, salaries, or leave balances.</p>
+          <div className="space-y-4">
+            {/* Welcome message */}
+            <div className="text-center text-gray-400 text-sm mb-6">
+              <p className="mb-2 text-lg">👋 Welcome, {user?.fullName?.split(' ')[0] || 'User'}!</p>
+              <p className="text-xs opacity-75">Choose a quick action or type your question</p>
             </div>
-            <div className="space-y-2">
-              {suggestions.map((suggestion, i) => (
+
+            {/* Category filters */}
+            <div className="flex flex-wrap gap-2 justify-center mb-4">
+              {categories.map(cat => (
                 <button
-                  key={i}
-                  onClick={() => sendMessage(suggestion)}
-                  className="w-full text-left p-3 text-sm text-gray-300 bg-[#252a36] hover:bg-[#2d3341] rounded-lg border border-gray-700 transition-colors"
+                  key={cat.id}
+                  onClick={() => setActiveCategory(cat.id)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs transition-all ${
+                    activeCategory === cat.id
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-[#252a36] text-gray-400 hover:bg-[#2d3341] hover:text-gray-200'
+                  }`}
                 >
-                  {suggestion}
+                  {cat.icon}
+                  {cat.label}
                 </button>
               ))}
+            </div>
+
+            {/* Suggestion chips grid */}
+            <div className="grid grid-cols-2 gap-2">
+              {filteredChips.map((chip, i) => (
+                <button
+                  key={i}
+                  onClick={() => handleChipClick(chip.query)}
+                  className="flex items-center gap-2 p-3 text-left text-sm text-gray-300 bg-[#252a36] hover:bg-[#2d3341] hover:text-white rounded-lg border border-gray-700 hover:border-blue-500/50 transition-all group"
+                >
+                  <span className="text-lg group-hover:scale-110 transition-transform">{chip.icon}</span>
+                  <span className="font-medium">{chip.label}</span>
+                </button>
+              ))}
+            </div>
+
+            {/* Role indicator */}
+            <div className="text-center mt-4">
+              <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-gray-800 text-xs text-gray-500">
+                <span className={`w-1.5 h-1.5 rounded-full ${userRole === 'HR' ? 'bg-purple-500' : 'bg-green-500'}`} />
+                {userRole} View
+              </span>
             </div>
           </div>
         )}
@@ -116,18 +210,13 @@ export default function Chat({ onClose }: { onClose?: () => void }) {
                     ? 'bg-red-900/30 text-red-200 rounded-tl-none border border-red-800'
                     : 'bg-[#252a36] text-gray-200 rounded-tl-none border border-gray-700'
               }`}>
-                {/* Message Content */}
                 <div className="whitespace-pre-wrap">{msg.content}</div>
                 
-                {/* Data Table for structured results */}
                 {msg.type === 'data' && msg.data && msg.data.length > 0 && (
                   <DataTable data={msg.data} rowCount={msg.rowCount} />
                 )}
                 
-                {/* SQL Transparency Toggle */}
-                {msg.sql && (
-                  <SqlToggle sql={msg.sql} />
-                )}
+                {msg.sql && <SqlToggle sql={msg.sql} />}
               </div>
             </div>
           </div>
@@ -148,6 +237,24 @@ export default function Chat({ onClose }: { onClose?: () => void }) {
           </div>
         )}
       </div>
+
+      {/* Quick chips when chat has started */}
+      {messages.length > 0 && !isLoading && (
+        <div className="px-4 py-2 bg-[#1c202a] border-t border-gray-800">
+          <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
+            {filteredChips.slice(0, 4).map((chip, i) => (
+              <button
+                key={i}
+                onClick={() => handleChipClick(chip.query)}
+                className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 text-xs text-gray-400 bg-[#0f1115] hover:bg-[#252a36] hover:text-gray-200 rounded-full border border-gray-700 transition"
+              >
+                <span>{chip.icon}</span>
+                {chip.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Input area */}
       <div className="p-4 bg-[#1c202a] border-t border-gray-800">
@@ -175,7 +282,7 @@ export default function Chat({ onClose }: { onClose?: () => void }) {
   );
 }
 
-// Data Table Component
+// Data Table Component (unchanged)
 function DataTable({ data, rowCount }: { data: any[], rowCount?: number }) {
   const [expanded, setExpanded] = useState(false);
   const columns = Object.keys(data[0]);
@@ -194,11 +301,7 @@ function DataTable({ data, rowCount }: { data: any[], rowCount?: number }) {
             onClick={() => setExpanded(!expanded)}
             className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1"
           >
-            {expanded ? (
-              <>Show less <ChevronUp size={12} /></>
-            ) : (
-              <>Show all <ChevronDown size={12} /></>
-            )}
+            {expanded ? <>Show less <ChevronUp size={12} /></> : <>Show all <ChevronDown size={12} /></>}
           </button>
         )}
       </div>
@@ -231,7 +334,7 @@ function DataTable({ data, rowCount }: { data: any[], rowCount?: number }) {
   );
 }
 
-// SQL Transparency Toggle
+// SQL Transparency Toggle (unchanged)
 function SqlToggle({ sql }: { sql: string }) {
   const [showSql, setShowSql] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -261,7 +364,6 @@ function SqlToggle({ sql }: { sql: string }) {
           <button
             onClick={copyToClipboard}
             className="absolute top-2 right-2 p-1.5 bg-gray-800 hover:bg-gray-700 rounded text-gray-400 hover:text-white opacity-0 group-hover:opacity-100 transition-opacity"
-            title="Copy SQL"
           >
             {copied ? 'Copied!' : <FileText size={12} />}
           </button>
@@ -271,17 +373,14 @@ function SqlToggle({ sql }: { sql: string }) {
   );
 }
 
-// Format cell values for display
 function formatCellValue(value: any): string {
   if (value === null || value === undefined) return '-';
   if (typeof value === 'boolean') return value ? 'Yes' : 'No';
   if (typeof value === 'number') {
-    // Format as currency if it looks like a salary
     if (value > 1000) return `AED ${value.toLocaleString()}`;
     return value.toString();
   }
   if (typeof value === 'string' && value.match(/^\d{4}-\d{2}-\d{2}/)) {
-    // Format dates
     return new Date(value).toLocaleDateString();
   }
   return String(value);
