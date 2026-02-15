@@ -47,9 +47,11 @@ export default function Chat({ onClose }: { onClose?: () => void }) {
         // Employee-specific
         { label: 'My department', query: 'Who is in my department?', role: 'Employee', category: 'query', icon: '🏢' },
         { label: 'Car loan eligibility', query: 'Am I eligible for a car loan?', role: 'Employee', category: 'query', icon: '🚗' },
-        { label: 'Housing loan', query: 'Can I apply for a housing loan?', role: 'Employee', category: 'query', icon: '🏠' },
+        { label: 'Housing loan eligibility', query: 'Am I eligible for a housing loan?', role: 'Employee', category: 'query', icon: '🏠' },
+        { label: 'Personal loan eligibility', query: 'Can I get a personal loan?', role: 'Employee', category: 'query', icon: '💰' },
         { label: 'Promotion criteria', query: 'What are the requirements for promotion to Grade 12?', role: 'Employee', category: 'query', icon: '📈' },
         { label: 'Salary certificate', query: 'How can I get my salary certificate?', role: 'Employee', category: 'document', icon: '📄' },
+        { label: 'My loans', query: 'Show my active loans', role: 'Employee', category: 'query', icon: '🏦' },
 
         // HR-specific
         { label: 'All employees', query: 'List all active employees', role: 'HR', category: 'query', icon: '👥' },
@@ -57,9 +59,10 @@ export default function Chat({ onClose }: { onClose?: () => void }) {
         { label: 'High earners', query: 'Who earns more than 15000 AED?', role: 'HR', category: 'query', icon: '💎' },
         { label: 'Senior staff', query: 'Show employees with grade 12 and above', role: 'HR', category: 'query', icon: '⭐' },
         { label: 'Salary report', query: 'What is the average salary by department?', role: 'HR', category: 'query', icon: '📊' },
-        { label: 'New hire', query: 'Help me create a new employee record', role: 'HR', category: 'action', icon: '➕' },
+        { label: 'Loan eligibility check', query: 'Check loan eligibility for John Doe', role: 'HR', category: 'query', icon: '🔍' },
+        { label: 'New employee', query: 'Help me create a new employee record', role: 'HR', category: 'action', icon: '➕' },
         { label: 'Promote employee', query: 'Promote John Doe to Grade 12', role: 'HR', category: 'action', icon: '⭐' },
-        { label: 'Generate report', query: 'Generate a salary certificate for John Doe', role: 'HR', category: 'document', icon: '📄' },
+        { label: 'Salary certificate', query: 'Generate a salary certificate for John Doe', role: 'HR', category: 'document', icon: '📄' },
         ], []);
 
   // Filter chips by role and category
