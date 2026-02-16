@@ -2,8 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
-import { useEffect, type JSX } from 'react';
-import api from './api';
+import { type JSX } from 'react';
 
 // Create a client for React Query
 const queryClient = new QueryClient();

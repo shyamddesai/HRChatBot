@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { 
   Bot, Users, LogOut, Plus, RefreshCcw, AlertCircle, X, CheckCircle, 
   UserPlus, MoreHorizontal, UserX, Search, Filter, ArrowUpDown, 
-  Building2, Mail, Calendar, Briefcase, FileText, CreditCard, 
+  Building2, Mail, Calendar, Briefcase, FileText, 
   Edit3, UserCheck, ChevronDown, ChevronUp, TrendingUp, History
 } from 'lucide-react';
 import api from '../api';
@@ -338,18 +338,6 @@ export default function Dashboard() {
   const activeCount = employees?.filter(e => e.status === 'Active').length ?? 0;
   const inactiveCount = employees?.filter(e => e.status !== 'Active').length ?? 0;
   const employeeSalary = myProfile?.salaries?.find((s: any) => !s.effectiveTo)?.baseSalary;
-
-  const { data: activeLoans } = useQuery({
-    queryKey: ['activeLoansCount'],
-    queryFn: async () => {
-      // const res = await api.get('/loans?status=Active&count=true');
-      // return res.data.count;
-      return 0;
-    },
-    enabled: isHR
-  });
-
-  
 
   // Stats for HR view
   const hrStats = [

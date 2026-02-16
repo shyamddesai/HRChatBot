@@ -42,3 +42,4 @@ packages/
 *.tmp
 *.temp
 **/logs/
+**/docker-compose.yml
