@@ -1,8 +1,12 @@
 import axios from 'axios';
 
+const baseURL = import.meta.env.PROD 
+  ? '/api' 
+  : 'http://localhost:5049/api';
+
 const api = axios.create({
-  baseURL: 'http://localhost:5049/api',
-  timeout: 30000, // 30s timeout for LLM calls
+  baseURL,
+  timeout: 30000,
 });
 
 api.interceptors.request.use((config) => {
