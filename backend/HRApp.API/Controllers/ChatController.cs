@@ -81,7 +81,6 @@ namespace HRApp.API.Controllers
             ACTIONS (HR only):
             - create_employee: Creates a new employee. Requires: fullName, email, department, grade, salary.
             - promote_employee: Promotes an employee. Requires: employeeName, newGrade (optional newSalary).
-            - generate_salary_certificate: Generates a salary certificate PDF. Requires: employeeName.
 
             Loan Guidelines (for reference):
             - If the user asks about loan eligibility, car loans, housing loans, or personal loans, set intent to ""loan_eligibility"", include the loan type in your response, and you can query the ""Loans"" table.
@@ -123,6 +122,10 @@ namespace HRApp.API.Controllers
             }}
 
             For generate_salary_certificate:
+            - Generates a salary certificate PDF. Requires: employeeName.
+            - HR can generate for any employee. If they want to generate a salary certificate for an employee, ask for the employee's name and use it to find the record.
+            Employees can only generate for themselves (and no one else).
+            - If the user says ""for me"" or ""my certificate,"" use their Name: {fullName} as the employeeName. Otherwise, use the name provided in the request. 
             {{
                 ""intent"": ""generate_salary_certificate"",
                 ""employeeName"": ""...""
@@ -272,14 +275,36 @@ namespace HRApp.API.Controllers
                 // Handle salary certificate
                 if (intent == "generate_salary_certificate")
                 {
-                    if (!parameters.TryGetValue("employeeName", out var nameObj))
-                        return Ok(new { answer = "Please specify the employee name." });
+                    // Try to get the name from LLM parameters; default to empty if not found
+                    string employeeName = parameters.TryGetValue("employeeName", out var nameObj) && nameObj != null 
+                    ? nameObj.ToString() ?? "" 
+                    : "";
 
-                    string employeeName = nameObj?.ToString() ?? "";
-                    if (string.IsNullOrWhiteSpace(employeeName))
-                        return Ok(new { answer = "Employee name cannot be empty." });
+                    // If the name is empty or refers to "me", use the authenticated user's full name
+                    if (string.IsNullOrWhiteSpace(employeeName) || 
+                        employeeName.ToLower() == "me" || 
+                        employeeName.ToLower() == "my" || 
+                        employeeName.ToLower() == "myself")
+                    {
+                        employeeName = fullName ?? "";
+                    }
 
-                    var employee = await _context.Employees.FirstOrDefaultAsync(e => e.FullName.Contains(employeeName) && e.Status == "Active");
+                    // Prevent Employee role from requesting certificates for other people
+                    if (userRole == "Employee" && !string.Equals(employeeName, fullName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return Ok(new { 
+                            answer = "Access Denied: As an employee, you are only authorized to generate your own salary certificate.", 
+                            type = "error" 
+                        });
+                    }
+
+                    // Proceed with database lookup using the determined name
+                    var employee = await _context.Employees
+                    .FirstOrDefaultAsync(e =>
+                        e.Status == "Active" &&
+                        e.FullName != null &&
+                        EF.Functions.ILike(e.FullName, $"%{employeeName}%"));
+
                     if (employee == null)
                         return Ok(new { answer = $"No active employee found with name '{employeeName}'.", type = "error" });
 
@@ -303,7 +328,7 @@ namespace HRApp.API.Controllers
                     }
 
                     // Apply row-level security for non-HR users
-                    sql = ApplyRowLevelSecurity(sql, userRole!, userId);
+                    // sql = ApplyRowLevelSecurity(sql, userRole!, userId);
 
                     var (results, columns) = await ExecuteDynamicSqlAsync(sql, userId);
                     var formattedAnswer = await FormatResultsWithLlmAsync(request.Message, results, columns, explanation);

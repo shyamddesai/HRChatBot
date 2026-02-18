@@ -59,6 +59,7 @@ namespace HRApp.API.Controllers
                     new Claim(ClaimTypes.NameIdentifier, employee.Id.ToString()),
                     new Claim(ClaimTypes.Email, employee.Email),
                     new Claim(ClaimTypes.Role, employee.Role),
+                    new Claim(ClaimTypes.Name, employee.FullName),
                     new Claim("EmployeeCode", employee.EmployeeCode)
                 }),
                 Expires = DateTime.UtcNow.AddMinutes(expireMinutes),

@@ -62,7 +62,7 @@ export default function Chat({ onClose }: { onClose?: () => void }) {
         { label: 'Loan eligibility check', query: 'Check loan eligibility for employee', role: 'HR', category: 'query', icon: '🔍' },
         { label: 'New employee', query: 'Create a new employee record', role: 'HR', category: 'action', icon: '➕' },
         { label: 'Promote employee', query: 'Promote employee', role: 'HR', category: 'action', icon: '⭐' },
-        { label: 'Salary certificate', query: 'Generate a salary certificate', role: 'HR', category: 'document', icon: '📄' },
+        { label: 'Salary certificate', query: 'Generate a salary certificate for an employee', role: 'HR', category: 'document', icon: '📄' },
         ], []);
 
   // Filter chips by role and category
